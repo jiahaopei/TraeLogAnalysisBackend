@@ -1,0 +1,34 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:./log_analysis.db
+    driver-class-name: org.sqlite.JDBC
+    username: sa
+    password: sa
+    schema: classpath:schema.sql
+  jpa:
+    hibernate:
+      ddl-auto: none
+    database-platform: com.trae.loganalysis.config.SQLiteDialect
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: com.trae.loganalysis.config.SQLiteDialect
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+# 文件上传配置
+file:
+  upload:
+    path: ./uploads/
+  analysis:
+    thread-pool-size: 5
+
+# 日志配置
+logging:
+  level:
+    com.trae: DEBUG
+    org.springframework: INFO
+    org.hibernate: INFO

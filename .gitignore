@@ -1,0 +1,26 @@
+# IDE directories and files
+.idea/
+.trae/
+
+# Compiled classes
+.target/
+
+# Database files
+log_analysis.db
+*.db-journal
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Maven build directory
+target/
+
+# Local configuration files
+.env
+.local.properties
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
