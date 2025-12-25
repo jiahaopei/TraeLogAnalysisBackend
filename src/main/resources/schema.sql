@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS file_data (
     column1 TEXT,
     column2 TEXT,
     column3 TEXT,
+    column4 TEXT,
     data_content TEXT,
     row_index INTEGER
 );

@@ -22,6 +22,9 @@ public class FileData {
     @Column(name = "column3")
     private String column3;
 
+    @Column(name = "column4")
+    private String column4;
+
     @Column(name = "data_content", columnDefinition = "TEXT")
     private String dataContent;
 
@@ -68,6 +71,14 @@ public class FileData {
 
     public void setColumn3(String column3) {
         this.column3 = column3;
+    }
+
+    public String getColumn4() {
+        return column4;
+    }
+
+    public void setColumn4(String column4) {
+        this.column4 = column4;
     }
 
     public String getDataContent() {

@@ -47,6 +47,18 @@ public class FileUploadController {
     }
 
     /**
+     * 分页获取上传文件
+     * @param page 页码（从0开始）
+     * @param size 每页大小
+     * @return 分页结果
+     */
+    @GetMapping("/page")
+    public ResponseEntity<?> getUploadFilesByPage(@RequestParam(defaultValue = "0") int page,
+                                                 @RequestParam(defaultValue = "10") int size) {
+        return new ResponseEntity<>(fileUploadService.getUploadFilesByPage(page, size), HttpStatus.OK);
+    }
+
+    /**
      * 根据ID获取上传文件
      * @param id 文件ID
      * @return 上传文件信息

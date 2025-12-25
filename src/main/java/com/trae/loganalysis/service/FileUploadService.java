@@ -7,6 +7,7 @@ import com.trae.loganalysis.repository.UploadFileRepository;
 import com.trae.loganalysis.util.ExcelUtil;
 import com.trae.loganalysis.util.FileUtil;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -104,7 +105,7 @@ public class FileUploadService {
             fileData.setFileId(fileId);
             fileData.setRowIndex(i);
 
-            // 保存前三列数据
+            // 保存前四列数据
             if (rowData.size() >= 1) {
                 fileData.setColumn1(rowData.get(0));
             }
@@ -114,12 +115,15 @@ public class FileUploadService {
             if (rowData.size() >= 3) {
                 fileData.setColumn3(rowData.get(2));
             }
+            if (rowData.size() >= 4) {
+                fileData.setColumn4(rowData.get(3));
+            }
 
             // 保存其他列数据（JSON格式）
-            if (rowData.size() > 3) {
+            if (rowData.size() > 4) {
                 StringBuilder jsonBuilder = new StringBuilder();
                 jsonBuilder.append("[");
-                for (int j = 3; j < rowData.size(); j++) {
+                for (int j = 4; j < rowData.size(); j++) {
                     jsonBuilder.append('"').append(rowData.get(j)).append('"');
                     if (j < rowData.size() - 1) {
                         jsonBuilder.append(",");
@@ -149,5 +153,17 @@ public class FileUploadService {
      */
     public List<UploadFile> getAllUploadFiles() {
         return uploadFileRepository.findAll();
+    }
+
+    /**
+     * 分页获取上传文件
+     * @param page 页码（从0开始）
+     * @param size 每页大小
+     * @return 分页结果
+     */
+    public org.springframework.data.domain.Page<UploadFile> getUploadFilesByPage(int page, int size) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        Page<UploadFile> all = uploadFileRepository.findAll(pageable);
+        return all;
     }
 }

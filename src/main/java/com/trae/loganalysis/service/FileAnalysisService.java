@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 @Service
 public class FileAnalysisService {
@@ -63,7 +64,7 @@ public class FileAnalysisService {
                 List<CompletableFuture<Void>> futures = fileDataList.stream()
                         .map(fileData -> CompletableFuture.runAsync(
                                 () -> analyzeDataRow(fileId, fileData), executorService))
-                        .toList();
+                        .collect(Collectors.toList());
 
                 // 等待所有分析完成
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
