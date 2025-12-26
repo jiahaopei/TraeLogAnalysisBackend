@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:sqlite:./log_analysis.db
+    url: jdbc:sqlite:./log_analysis.db?journal_mode=WAL
     driver-class-name: org.sqlite.JDBC
     username: sa
     password: sa
