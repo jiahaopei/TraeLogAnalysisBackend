@@ -1,0 +1,25 @@
+# 开发环境配置
+spring:
+  datasource:
+    url: jdbc:sqlite:./log_analysis.db?journal_mode=WAL
+    username: sa
+    password: sa
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+# 文件配置
+file:
+  upload:
+    path: ./uploads/
+  analysis:
+    thread-pool-size: 5
+
+# 日志配置
+logging:
+  level:
+    com.trae: DEBUG
+    org.springframework: INFO
+    org.hibernate: INFO
