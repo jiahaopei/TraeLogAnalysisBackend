@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS analysis_result (
     file_data_id INTEGER,
     result_content TEXT NOT NULL,
     analysis_time TIMESTAMP NOT NULL,
-    status TEXT NOT NULL
+    status TEXT NOT NULL,
+    log_info TEXT
 );
 
 -- 创建索引

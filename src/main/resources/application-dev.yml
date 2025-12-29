@@ -10,12 +10,36 @@ spring:
       hibernate:
         format_sql: true
 
+# 服务器配置
+server:
+  port: 8080
+
 # 文件配置
 file:
   upload:
     path: ./uploads/
   analysis:
     thread-pool-size: 5
+
+# API配置
+api:
+  log-analysis:
+    url: http://localhost:8080/logAnalysis/api/itoa/ck/getLogInfo
+    system-code: NCB
+    condition:
+      key: LEVEL
+      value: ERROR
+    size: 10
+  ai-suggestion:
+    url: http://localhost:8080/logai/analysis/ai/suggestion
+    system-code: NCB
+    query-params:
+      data-set-id: 1232
+      center-ids: [4343]
+      app-id: 2343
+      index-prefix: index
+      size: 100
+      remark: downContext
 
 # 日志配置
 logging:

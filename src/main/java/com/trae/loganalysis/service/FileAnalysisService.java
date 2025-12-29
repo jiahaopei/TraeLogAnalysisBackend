@@ -1,5 +1,6 @@
 package com.trae.loganalysis.service;
 
+import com.alibaba.fastjson.JSONObject;
 import com.trae.loganalysis.entity.AnalysisResult;
 import com.trae.loganalysis.entity.FileData;
 import com.trae.loganalysis.entity.UploadFile;
@@ -7,9 +8,18 @@ import com.trae.loganalysis.repository.AnalysisResultRepository;
 import com.trae.loganalysis.repository.FileDataRepository;
 import com.trae.loganalysis.repository.UploadFileRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -23,16 +33,57 @@ public class FileAnalysisService {
     private final UploadFileRepository uploadFileRepository;
     private final FileDataRepository fileDataRepository;
     private final AnalysisResultRepository analysisResultRepository;
+    private final RestTemplate restTemplate;
 
     private final ExecutorService executorService;
+    
+    // API Configuration
+    @Value("${api.log-analysis.url}")
+    private String logAnalysisUrl;
+    
+    @Value("${api.log-analysis.system-code}")
+    private String logAnalysisSystemCode;
+    
+    @Value("${api.log-analysis.condition.key}")
+    private String logAnalysisConditionKey;
+    
+    @Value("${api.log-analysis.condition.value}")
+    private String logAnalysisConditionValue;
+    
+    @Value("${api.log-analysis.size}")
+    private int logAnalysisSize;
+    
+    // AI Suggestion Configuration
+    @Value("${api.ai-suggestion.url}")
+    private String aiSuggestionUrl;
+    
+    @Value("${api.ai-suggestion.system-code}")
+    private String aiSuggestionSystemCode;
+    
+    @Value("${api.ai-suggestion.query-params.data-set-id}")
+    private int aiSuggestionDataSetId;
+    
+    @Value("${api.ai-suggestion.query-params.app-id}")
+    private int aiSuggestionAppId;
+    
+    @Value("${api.ai-suggestion.query-params.index-prefix}")
+    private String aiSuggestionIndexPrefix;
+    
+    @Value("${api.ai-suggestion.query-params.size}")
+    private int aiSuggestionSize;
+    
+    @Value("${api.ai-suggestion.query-params.remark}")
+    private String aiSuggestionRemark;
 
     public FileAnalysisService(UploadFileRepository uploadFileRepository,
                               FileDataRepository fileDataRepository,
                               AnalysisResultRepository analysisResultRepository,
+                              RestTemplate restTemplate,
                               @Value("${file.analysis.thread-pool-size}") int threadPoolSize) {
         this.uploadFileRepository = uploadFileRepository;
         this.fileDataRepository = fileDataRepository;
         this.analysisResultRepository = analysisResultRepository;
+        this.restTemplate = restTemplate;
         this.executorService = Executors.newFixedThreadPool(threadPoolSize);
     }
 
@@ -110,28 +161,41 @@ public class FileAnalysisService {
         result.setStatus("SUCCESS");
 
         try {
-            // 模拟数据分析过程
-            Thread.sleep(1000); // 模拟耗时操作
+            // Step 1: Call logAnalysis API to get log info
+            String logInfoResponse = callLogAnalysisApi(fileData.getColumn4());
+            
+            // Parse JSON response using Fastjson
+            JSONObject rootObj = JSONObject.parseObject(logInfoResponse);
+            String retCode = rootObj.getString("retCode");
+            
+            // Check if the API call was successful
+            String logMessage = "";
+            if (!"0000".equals(retCode)) {
+                // API call failed, set result status to FAILED
+                logMessage  = "获取日志失败";
+            }else {
+                JSONObject entityObj = rootObj.getJSONObject("entity");
+                if (entityObj != null) {
+                    // Extract values array from entity
+                    java.util.List<JSONObject> valuesArray = entityObj.getJSONArray("values").toJavaList(JSONObject.class);
+                    if (!valuesArray.isEmpty()) {
+                        // Get first value object
+                        JSONObject firstValueObj = valuesArray.get(0);
+                        // Extract source object
+                        JSONObject sourceObj = firstValueObj.getJSONObject("source");
+                        if (sourceObj != null) {
+                            // Get @message field
+                            logMessage = sourceObj.getString("@message");
+                        }
+                    }
+                }
+            }
+            result.setLogInfo(logMessage);
 
-            // 简单的分析逻辑：统计数据长度和内容
-            StringBuilder resultContent = new StringBuilder();
-            resultContent.append("{\n")
-                    .append("  \"rowIndex\": ").append(fileData.getRowIndex()).append(",\n")
-                    .append("  \"column1\": \"").append(fileData.getColumn1()).append("\",\n")
-                    .append("  \"column2\": \"").append(fileData.getColumn2()).append("\",\n")
-                    .append("  \"column3\": \"").append(fileData.getColumn3()).append("\",\n")
-                    .append("  \"column4\": \"").append(fileData.getColumn4()).append("\",\n")
-                    .append("  \"dataContent\": ").append(fileData.getDataContent()).append(",\n")
-                    .append("  \"analysis\": {").append("\n")
-                    .append("    \"column1Length\": ").append(fileData.getColumn1() != null ? fileData.getColumn1().length() : 0).append(",\n")
-                    .append("    \"column2Length\": ").append(fileData.getColumn2() != null ? fileData.getColumn2().length() : 0).append(",\n")
-                    .append("    \"column3Length\": ").append(fileData.getColumn3() != null ? fileData.getColumn3().length() : 0).append(",\n")
-                    .append("    \"column4Length\": ").append(fileData.getColumn4() != null ? fileData.getColumn4().length() : 0).append(",\n")
-                    .append("    \"hasDataContent\": ").append(fileData.getDataContent() != null && !fileData.getDataContent().isEmpty()).append("\n")
-                    .append("  }\n")
-                    .append("}");
+            // Step 2: Call AI suggestion API with log info
+            String aiSuggestionResponse = callAiSuggestionApi(logMessage);
+            result.setResultContent(aiSuggestionResponse);
 
-            result.setResultContent(resultContent.toString());
         } catch (Exception e) {
             result.setStatus("FAILED");
             result.setResultContent("Analysis failed: " + e.getMessage());
@@ -139,6 +203,74 @@ public class FileAnalysisService {
         }
 
         return result;
+    }
+    
+    /**
+     * Call log analysis API to get log information
+     */
+    private String callLogAnalysisApi(String column4) {
+        // Create request headers
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        String logAnalysisEndTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+        Date startDate = new Date(new Date().getTime() - 24 * 60 * 60 * 1000);
+        String logAnalysisStartTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(startDate);
+        // Create request body using configuration parameters
+        String requestBody = String.format(
+            "{\"systemCode\":\"%s\",\"message\":\"%s\",\"startTime\":\"%s\",\"endTime\":\"%s\",\"conditionValueMap\":{\"condition\":\"%s\",\"value\":\"%s\"},\"size\":%d}",
+            logAnalysisSystemCode, column4, logAnalysisStartTime, logAnalysisEndTime,
+            logAnalysisConditionKey, logAnalysisConditionValue, logAnalysisSize
+        );
+        
+        // Create HttpEntity with headers and body
+        HttpEntity<String> requestEntity = new HttpEntity<>(requestBody, headers);
+        
+        // Send POST request using configured URL
+        ResponseEntity<String> response = restTemplate.exchange(
+                logAnalysisUrl, 
+                HttpMethod.POST, 
+                requestEntity, 
+                String.class);
+        
+        return response.getBody();
+    }
+    
+
+    
+    /**
+     * Call AI suggestion API with log information
+     */
+    private String callAiSuggestionApi(String logMessage) throws IOException {
+        // Construct the API URL with query parameter using configuration
+        String apiUrl = aiSuggestionUrl + "?systemCode=" + aiSuggestionSystemCode;
+        
+        // Create request body using configuration parameters
+        String requestBody = String.format(
+            "{\"queryCondiion\":\"\",\"querySource\":[{\"dataSetId\":%d,\"centerIds\":[4343],\"dataSetAlias\":null,\"appId\":%d}],\"indexPrefix\":\"%s\",\"options\":{\"sortBy\":[{\"@rownumber\":\"asc\"}],\"size\":%d,\"remark\":\"%s\",\"format\":\"std\",\"highlight\":false,\"trackTotalHits\":false},\"time_zone\":\"+8:00\"}",
+            aiSuggestionDataSetId, aiSuggestionAppId, aiSuggestionIndexPrefix, aiSuggestionSize, aiSuggestionRemark
+        );
+        
+        // Use HttpURLConnection to handle text/event-stream response
+        URL url = new URL(apiUrl);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setDoOutput(true);
+        
+        // Write request body
+        conn.getOutputStream().write(requestBody.getBytes(StandardCharsets.UTF_8));
+        
+        // Read text/event-stream response
+        StringBuilder responseBuilder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                responseBuilder.append(line).append("\n");
+            }
+        }
+        
+        conn.disconnect();
+        return responseBuilder.toString();
     }
 
     /**

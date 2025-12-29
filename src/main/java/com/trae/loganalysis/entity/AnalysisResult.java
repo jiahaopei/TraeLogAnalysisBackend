@@ -25,6 +25,9 @@ public class AnalysisResult {
 
     @Column(name = "status", nullable = false)
     private String status;
+    
+    @Column(name = "log_info", columnDefinition = "TEXT")
+    private String logInfo;
 
     // Getters and Setters
 
@@ -74,5 +77,13 @@ public class AnalysisResult {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getLogInfo() {
+        return logInfo;
+    }
+
+    public void setLogInfo(String logInfo) {
+        this.logInfo = logInfo;
     }
 }
