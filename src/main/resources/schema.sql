@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS analysis_result (
     result_content TEXT NOT NULL,
     analysis_time TIMESTAMP NOT NULL,
     status TEXT NOT NULL,
-    log_info TEXT
+    log_info TEXT,
+    code TEXT
 );
 
 -- 创建索引
