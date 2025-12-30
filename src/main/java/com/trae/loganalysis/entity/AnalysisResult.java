@@ -1,6 +1,6 @@
 package com.trae.loganalysis.entity;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.util.Date;
 
 @Entity

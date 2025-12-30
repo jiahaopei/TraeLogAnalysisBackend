@@ -9,6 +9,8 @@ spring:
     properties:
       hibernate:
         dialect: com.trae.loganalysis.config.SQLiteDialect
+        jdbc:
+          use_get_generated_keys: false
   servlet:
     multipart:
       max-file-size: 100MB
