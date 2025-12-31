@@ -218,21 +218,33 @@ public class FileAnalysisService {
     
     /**
      * Extract method name from log message
-     * Log format: [YYYY-MM-DD HH:mm:ss][ERROR][xxx-xxx][][][org.spring.conftig.updataCommon:98]...
+     * Log format: [YYYY-MM-DD HH:mm:ss][ERROR][xxx-xxx][][][org.spring.conftig.updataCommon:98][Thread][td][sd]...
+     * Uses regex to find the method name regardless of bracket count before or after
      */
     private String extractMethodNameFromLog(String logMessage) {
         if (logMessage == null || logMessage.isEmpty()) {
             return "";
         }
         
-        // Pattern to match the method name in the log format
-        // Look for the last part before :lineNumber
-        int lastBracketIndex = logMessage.lastIndexOf("]");
-        int lastDotIndex = logMessage.lastIndexOf(".");
-        int colonIndex = logMessage.lastIndexOf(":");
+        // Regex pattern to match [fully.qualified.Class.method:lineNumber]
+        // Looks for content like [org.spring.conftig.updataCommon:98] and extracts the method name
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\[([\\w.]+:[\\d]+)\\]");
+        java.util.regex.Matcher matcher = pattern.matcher(logMessage);
         
-        if (lastDotIndex != -1 && colonIndex != -1 && lastDotIndex < colonIndex) {
-            return logMessage.substring(lastDotIndex + 1, colonIndex);
+        if (matcher.find()) {
+            // Extract the content inside the brackets, e.g., "org.spring.conftig.updataCommon:98"
+            String bracketedContent = matcher.group(1);
+            // Split on colon to get the class.method part and line number
+            String[] parts = bracketedContent.split(":");
+            if (parts.length > 0) {
+                String classMethodPart = parts[0];
+                // Split on dots to get all parts
+                String[] classMethodParts = classMethodPart.split("\\.");
+                if (classMethodParts.length > 0) {
+                    // The method name is the last part
+                    return classMethodParts[classMethodParts.length - 1];
+                }
+            }
         }
         
         return "";
