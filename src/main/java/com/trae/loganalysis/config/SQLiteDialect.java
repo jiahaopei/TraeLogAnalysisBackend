@@ -1,17 +1,15 @@
 package com.trae.loganalysis.config;
 
+import org.hibernate.dialect.pagination.LimitOffsetLimitHandler;
+import org.hibernate.dialect.pagination.LimitHandler;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.identity.IdentityColumnSupport;
 import org.hibernate.dialect.identity.IdentityColumnSupportImpl;
 
 /**
- * SQLite方言实现
+ * SQLite方言实现，支持Hibernate 6.x的分页
  */
 public class SQLiteDialect extends Dialect {
-
-    public SQLiteDialect() {
-        super();
-    }
 
     @Override
     public IdentityColumnSupport getIdentityColumnSupport() {
@@ -76,5 +74,11 @@ public class SQLiteDialect extends Dialect {
     @Override
     public boolean supportsIfExistsBeforeTableName() {
         return true;
+    }
+    
+    @Override
+    public LimitHandler getLimitHandler() {
+        // Use the built-in LimitOffsetLimitHandler which generates LIMIT ? OFFSET ? syntax
+        return LimitOffsetLimitHandler.INSTANCE;
     }
 }

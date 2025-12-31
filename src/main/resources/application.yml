@@ -11,9 +11,11 @@ spring:
         dialect: com.trae.loganalysis.config.SQLiteDialect
         jdbc:
           use_get_generated_keys: false
-        query:
-          pagination:
-            limit-handler: sqlite
+        sql:
+          dialect: com.trae.loganalysis.config.SQLiteDialect
+        orm:
+          query:
+            limit-handler: "org.hibernate.dialect.pagination.LimitOffsetLimitHandler"
   servlet:
     multipart:
       max-file-size: 100MB
