@@ -5,10 +5,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-    database-platform: com.github.gwenn.sqlitedialect.SQLiteDialect
+    database-platform: com.trae.loganalysis.config.SQLiteDialect
     properties:
       hibernate:
-        dialect: com.github.gwenn.sqlitedialect.SQLiteDialect
+        dialect: com.trae.loganalysis.config.SQLiteDialect
         jdbc:
           use_get_generated_keys: false
   servlet:
