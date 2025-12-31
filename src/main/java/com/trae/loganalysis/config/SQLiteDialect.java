@@ -3,7 +3,6 @@ package com.trae.loganalysis.config;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.identity.IdentityColumnSupport;
 import org.hibernate.dialect.identity.IdentityColumnSupportImpl;
-import org.hibernate.type.SqlTypes;
 
 /**
  * SQLite方言实现
@@ -78,6 +77,4 @@ public class SQLiteDialect extends Dialect {
     public boolean supportsIfExistsBeforeTableName() {
         return true;
     }
-
-
 }
