@@ -43,6 +43,13 @@
             <artifactId>sqlite-jdbc</artifactId>
             <version>3.43.2.2</version>
         </dependency>
+        
+        <!-- SQLite Dialect for Hibernate 6.x -->
+        <dependency>
+            <groupId>com.github.gwenn</groupId>
+            <artifactId>sqlite-dialect</artifactId>
+            <version>0.1.2</version>
+        </dependency>
 
         <!-- Apache POI for Excel -->
         <dependency>

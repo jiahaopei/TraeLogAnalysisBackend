@@ -5,17 +5,12 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-    database-platform: com.trae.loganalysis.config.SQLiteDialect
+    database-platform: com.github.gwenn.sqlitedialect.SQLiteDialect
     properties:
       hibernate:
-        dialect: com.trae.loganalysis.config.SQLiteDialect
+        dialect: com.github.gwenn.sqlitedialect.SQLiteDialect
         jdbc:
           use_get_generated_keys: false
-        sql:
-          dialect: com.trae.loganalysis.config.SQLiteDialect
-        orm:
-          query:
-            limit-handler: "org.hibernate.dialect.pagination.LimitOffsetLimitHandler"
   servlet:
     multipart:
       max-file-size: 100MB
