@@ -192,9 +192,20 @@ public class FileAnalysisService {
             }
             result.setLogInfo(logMessage);
 
-            // Step 2: Call AI suggestion API with log info
-            String aiSuggestionResponse = callAiSuggestionApi(logMessage);
+            // Step 2: Extract method name from log message
+            String methodName = extractMethodNameFromLog(logMessage);
+            
+            // Step 3: Call source code API to get full source code
+            String fullSourceCode = callSourceCodeApi(fileData.getColumn4());
+            
+            // Step 4: Extract only the method code from full source code
+            String methodCode = extractMethodCode(fullSourceCode, methodName);
+            
+            // Step 5: Call AI suggestion API with method code
+            String aiSuggestionResponse = callAiSuggestionApi(methodCode);
             result.setResultContent(aiSuggestionResponse);
+            // Set the method name as code in the result
+            result.setCode(methodName);
 
         } catch (Exception e) {
             result.setStatus("FAILED");
@@ -203,6 +214,108 @@ public class FileAnalysisService {
         }
 
         return result;
+    }
+    
+    /**
+     * Extract method name from log message
+     * Log format: [YYYY-MM-DD HH:mm:ss][ERROR][xxx-xxx][][][org.spring.conftig.updataCommon:98]...
+     */
+    private String extractMethodNameFromLog(String logMessage) {
+        if (logMessage == null || logMessage.isEmpty()) {
+            return "";
+        }
+        
+        // Pattern to match the method name in the log format
+        // Look for the last part before :lineNumber
+        int lastBracketIndex = logMessage.lastIndexOf("]");
+        int lastDotIndex = logMessage.lastIndexOf(".");
+        int colonIndex = logMessage.lastIndexOf(":");
+        
+        if (lastDotIndex != -1 && colonIndex != -1 && lastDotIndex < colonIndex) {
+            return logMessage.substring(lastDotIndex + 1, colonIndex);
+        }
+        
+        return "";
+    }
+    
+    /**
+     * Call source code API to get full Java source code
+     */
+    private String callSourceCodeApi(String column4) {
+        // This is a placeholder implementation
+        // In a real scenario, this would call an actual API to get the source code
+        // For now, return a sample source code
+        return "public class SampleClass {\n" +
+               "    public void sampleMethod() {\n" +
+               "        System.out.println(\"Sample method\");\n" +
+               "    }\n" +
+               "    \n" +
+               "    public void updataCommon() {\n" +
+               "        try {\n" +
+               "            // Some code that might cause an error\n" +
+               "            int result = 10 / 0;\n" +
+               "        } catch (Exception e) {\n" +
+               "            e.printStackTrace();\n" +
+               "        }\n" +
+               "    }\n" +
+               "    \n" +
+               "    public void anotherMethod() {\n" +
+               "        System.out.println(\"Another method\");\n" +
+               "    }\n" +
+               "}";
+    }
+    
+    /**
+     * Extract only the specific method code from full source code
+     */
+    private String extractMethodCode(String fullSourceCode, String methodName) {
+        if (fullSourceCode == null || fullSourceCode.isEmpty() || methodName == null || methodName.isEmpty()) {
+            return fullSourceCode;
+        }
+        
+        // Find the method signature
+        String methodSignaturePattern = "(public|private|protected|static|final|abstract|synchronized|native|strictfp)\s+" +
+                                       "([\\w<>\\[\\]]+)\s+" +
+                                       methodName +
+                                       "\\s*\\([^)]*\\)\\s*" +
+                                       "(throws\\s+[\\w.,\\s]+)?\\s*" +
+                                       "\\{";
+        
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(methodSignaturePattern, java.util.regex.Pattern.MULTILINE);
+        java.util.regex.Matcher matcher = pattern.matcher(fullSourceCode);
+        
+        if (!matcher.find()) {
+            return fullSourceCode;
+        }
+        
+        int startIndex = matcher.start();
+        int braceCount = 0;
+        int endIndex = startIndex;
+        boolean insideString = false;
+        
+        // Find the matching closing brace
+        for (int i = startIndex; i < fullSourceCode.length(); i++) {
+            char c = fullSourceCode.charAt(i);
+            
+            // Check for string literals to avoid counting braces inside strings
+            if (c == '\"' && (i == 0 || fullSourceCode.charAt(i - 1) != '\\')) {
+                insideString = !insideString;
+            }
+            
+            if (!insideString) {
+                if (c == '{') {
+                    braceCount++;
+                } else if (c == '}') {
+                    braceCount--;
+                    if (braceCount == 0) {
+                        endIndex = i + 1;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        return fullSourceCode.substring(startIndex, endIndex);
     }
     
     /**
