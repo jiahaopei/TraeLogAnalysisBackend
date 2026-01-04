@@ -33,4 +33,26 @@ public class SQLiteDialect extends Dialect {
             }
         };
     }
+
+    @Override
+    public boolean hasAlterTable() {
+        // SQLite doesn't support ALTER TABLE, it has limited support
+        return false;
+    }
+
+    @Override
+    public boolean dropConstraints() {
+        // SQLite doesn't support constraints dropping
+        return false;
+    }
+
+    @Override
+    public boolean supportsIfExistsBeforeTableName() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsIfExistsBeforeConstraintName() {
+        return false;
+    }
 }

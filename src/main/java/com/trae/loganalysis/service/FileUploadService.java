@@ -161,9 +161,9 @@ public class FileUploadService {
      * @param size 每页大小
      * @return 分页结果
      */
-    public org.springframework.data.domain.Page<UploadFile> getUploadFilesByPage(int page, int size) {
-        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
-        Page<UploadFile> all = uploadFileRepository.findAll(pageable);
-        return all;
+    public List<UploadFile> getUploadFilesByPage(int page, int size) {
+        // 使用SQLite兼容的LIMIT OFFSET语法，避免使用Pageable生成不兼容的SQL
+        int offset = page * size;
+        return uploadFileRepository.findAllByOrderByIdAsc(offset, size);
     }
 }

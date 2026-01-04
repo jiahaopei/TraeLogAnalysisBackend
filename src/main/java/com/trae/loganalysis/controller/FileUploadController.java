@@ -53,9 +53,10 @@ public class FileUploadController {
      * @return 分页结果
      */
     @GetMapping("/page")
-    public ResponseEntity<?> getUploadFilesByPage(@RequestParam(defaultValue = "0") int page,
+    public ResponseEntity<List<UploadFile>> getUploadFilesByPage(@RequestParam(defaultValue = "0") int page,
                                                  @RequestParam(defaultValue = "10") int size) {
-        return new ResponseEntity<>(fileUploadService.getUploadFilesByPage(page, size), HttpStatus.OK);
+        List<UploadFile> files = fileUploadService.getUploadFilesByPage(page, size);
+        return new ResponseEntity<>(files, HttpStatus.OK);
     }
 
     /**

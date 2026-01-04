@@ -52,4 +52,6 @@ logging:
   level:
     com.trae: DEBUG
     org.springframework: INFO
-    org.hibernate: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    org.hibernate.engine.jdbc.env.internal.LobCreatorBuilderImpl: ERROR
