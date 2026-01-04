@@ -18,4 +18,11 @@ public interface UploadFileRepository extends JpaRepository<UploadFile, Long> {
      */
     @Query(value = "SELECT * FROM upload_file ORDER BY id ASC LIMIT ?2 OFFSET ?1", nativeQuery = true)
     List<UploadFile> findAllByOrderByIdAsc(int offset, int limit);
+    
+    /**
+     * 获取上传文件总条数
+     * @return 总条数
+     */
+    @Query(value = "SELECT COUNT(*) FROM upload_file", nativeQuery = true)
+    long countAllUploadFiles();
 }

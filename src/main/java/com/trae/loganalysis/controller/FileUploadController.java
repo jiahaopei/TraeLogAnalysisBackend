@@ -48,15 +48,17 @@ public class FileUploadController {
 
     /**
      * 分页获取上传文件
-     * @param page 页码（从0开始）
+     * @param page 页码（从1开始）
      * @param size 每页大小
-     * @return 分页结果
+     * @return 分页结果，包含总条数、页数等信息
      */
     @GetMapping("/page")
-    public ResponseEntity<List<UploadFile>> getUploadFilesByPage(@RequestParam(defaultValue = "0") int page,
+    public ResponseEntity<com.trae.loganalysis.model.PageResult<UploadFile>> getUploadFilesByPage(@RequestParam(defaultValue = "1") int page,
                                                  @RequestParam(defaultValue = "10") int size) {
-        List<UploadFile> files = fileUploadService.getUploadFilesByPage(page, size);
-        return new ResponseEntity<>(files, HttpStatus.OK);
+        // 将前端从1开始的页码转换为后端从0开始的计算
+        int offsetPage = page - 1;
+        com.trae.loganalysis.model.PageResult<UploadFile> pageResult = fileUploadService.getUploadFilesByPage(offsetPage, size);
+        return new ResponseEntity<>(pageResult, HttpStatus.OK);
     }
 
     /**

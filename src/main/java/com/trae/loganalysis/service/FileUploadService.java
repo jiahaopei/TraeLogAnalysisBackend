@@ -159,11 +159,13 @@ public class FileUploadService {
      * 分页获取上传文件
      * @param page 页码（从0开始）
      * @param size 每页大小
-     * @return 分页结果
+     * @return 分页结果，包含总条数、页数等信息
      */
-    public List<UploadFile> getUploadFilesByPage(int page, int size) {
+    public com.trae.loganalysis.model.PageResult<UploadFile> getUploadFilesByPage(int page, int size) {
         // 使用SQLite兼容的LIMIT OFFSET语法，避免使用Pageable生成不兼容的SQL
         int offset = page * size;
-        return uploadFileRepository.findAllByOrderByIdAsc(offset, size);
+        List<UploadFile> files = uploadFileRepository.findAllByOrderByIdAsc(offset, size);
+        long total = uploadFileRepository.count();
+        return new com.trae.loganalysis.model.PageResult<>(page, size, total, files);
     }
 }
