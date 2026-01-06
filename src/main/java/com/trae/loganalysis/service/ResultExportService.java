@@ -169,10 +169,22 @@ public class ResultExportService {
                 }
             }
 
-            return formattedCode.toString();
+            // Excel单元格有大小限制（32,767字符），需要截断过长的内容
+            String result = formattedCode.toString();
+            int maxLength = 32767; // Excel单元格最大字符数
+            if (result.length() > maxLength) {
+                result = result.substring(0, maxLength - 20) + "...(已截断，内容过长)";
+                logger.warn("code字段内容过长，已截断。原始长度: {}, 截断后长度: {}", formattedCode.length(), result.length());
+            }
+
+            return result;
         } catch (Exception e) {
             logger.error("解析code字段JSON失败: {}", code, e);
-            // 如果解析失败，直接返回原始字符串
+            // 如果解析失败，直接返回原始字符串，但也需要检查长度
+            if (code.length() > 32767) {
+                logger.warn("code字段内容过长，已截断。原始长度: {}", code.length());
+                return code.substring(0, 32747) + "...(已截断，内容过长)";
+            }
             return code;
         }
     }
