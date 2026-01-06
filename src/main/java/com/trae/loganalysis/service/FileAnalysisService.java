@@ -324,13 +324,8 @@ public class FileAnalysisService {
             return fullSourceCode;
         }
         
-        // Find method signature
-        String methodSignaturePattern = "(public|private|protected|static|final|abstract|synchronized|native|strictfp)\\s+" +
-                                       "([\\w<>\\[\\]]+)\\s+" +
-                                       methodName +
-                                       "\\s*\\([^)]*\\)\\s*" +
-                                       "(throws\\s+[\\w.,\\s]+)?\\s*" +
-                                       "\\{";
+        // Find method signature - simplified pattern to match method with any return type
+        String methodSignaturePattern = "\\b" + methodName + "\\s*\\([^)]*\\)\\s*\\{";
         
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(methodSignaturePattern, java.util.regex.Pattern.MULTILINE);
         java.util.regex.Matcher matcher = pattern.matcher(fullSourceCode);
