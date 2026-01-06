@@ -1,11 +1,16 @@
 package com.trae.loganalysis.service;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.trae.loganalysis.entity.AnalysisResult;
 import com.trae.loganalysis.entity.FileData;
 import com.trae.loganalysis.repository.AnalysisResultRepository;
 import com.trae.loganalysis.repository.FileDataRepository;
 import com.trae.loganalysis.util.ExcelUtil;
 import com.trae.loganalysis.util.FileUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +25,7 @@ import java.util.stream.Collectors;
 @Service
 public class ResultExportService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ResultExportService.class);
     private final AnalysisResultRepository analysisResultRepository;
     private final FileDataRepository fileDataRepository;
     private final ExcelUtil excelUtil;
@@ -44,11 +50,15 @@ public class ResultExportService {
      * @return 导出文件路径
      */
     public String exportAnalysisResults(Long fileId) throws IOException {
+        logger.info("开始导出分析结果，文件ID: {}", fileId);
+        
         // 获取文件的所有分析结果
         List<AnalysisResult> results = analysisResultRepository.findByFileId(fileId);
         if (results.isEmpty()) {
+            logger.warn("未找到文件的分析结果，文件ID: {}", fileId);
             throw new IllegalArgumentException("No analysis results found for file: " + fileId);
         }
+        logger.info("找到 {} 条分析结果", results.size());
 
         // 获取所有相关的文件数据
         List<Long> fileDataIds = results.stream()
@@ -60,25 +70,12 @@ public class ResultExportService {
         Map<Long, FileData> fileDataMap = fileDataList.stream()
                 .collect(Collectors.toMap(FileData::getId, fileData -> fileData));
 
+        // 创建sheet数据（所有数据在一个sheet内）
+        List<List<String>> sheetData = createSheetData(results, fileDataMap);
+
         // 创建sheet数据列表
         List<ExcelUtil.SheetData> sheetDataList = new ArrayList<>();
-
-        // 为每个分析结果创建一个sheet
-        for (AnalysisResult result : results) {
-            FileData fileData = fileDataMap.get(result.getFileDataId());
-            if (fileData == null) {
-                continue;
-            }
-
-            // 创建sheet名称（使用前三列组合）
-            String sheetName = createSheetName(fileData);
-
-            // 创建sheet数据
-            List<List<String>> sheetData = createSheetData(result, fileData);
-
-            // 添加到sheet数据列表
-            sheetDataList.add(new ExcelUtil.SheetData(sheetName, sheetData));
-        }
+        sheetDataList.add(new ExcelUtil.SheetData("Analysis Results", sheetData));
 
         // 创建导出目录
         String exportPath = uploadPath + "exports/";
@@ -90,103 +87,94 @@ public class ResultExportService {
 
         // 创建Excel文件
         excelUtil.createExcel(exportFilePath, sheetDataList);
+        logger.info("分析结果导出成功，文件路径: {}", exportFilePath);
 
         return exportFilePath;
     }
 
     /**
-     * 创建sheet名称
-     * @param fileData 文件数据
-     * @return sheet名称
+     * 创建sheet数据（所有数据在一个sheet内，每条数据一行）
+     * @param results 分析结果列表
+     * @param fileDataMap 文件数据映射
+     * @return sheet数据
      */
-    private String createSheetName(FileData fileData) {
-        // 使用前三列组合，最多31个字符（Excel sheet名称限制）
-        StringBuilder sheetName = new StringBuilder();
-        if (fileData.getColumn1() != null) {
-            sheetName.append(fileData.getColumn1()).append("_");
-        }
-        if (fileData.getColumn2() != null) {
-            sheetName.append(fileData.getColumn2()).append("_");
-        }
-        if (fileData.getColumn3() != null) {
-            sheetName.append(fileData.getColumn3());
+    private List<List<String>> createSheetData(List<AnalysisResult> results, Map<Long, FileData> fileDataMap) {
+        List<List<String>> sheetData = new ArrayList<>();
+
+        // 添加表头
+        List<String> headerRow = new ArrayList<>();
+        headerRow.add("column1");
+        headerRow.add("column2");
+        headerRow.add("column3");
+        headerRow.add("column4");
+        headerRow.add("错误日志");
+        headerRow.add("相关源码");
+        headerRow.add("AI初步分析");
+        sheetData.add(headerRow);
+
+        // 为每个分析结果创建一行数据
+        for (AnalysisResult result : results) {
+            FileData fileData = fileDataMap.get(result.getFileDataId());
+            if (fileData == null) {
+                logger.warn("未找到文件数据，fileDataId: {}", result.getFileDataId());
+                continue;
+            }
+
+            List<String> dataRow = new ArrayList<>();
+            
+            // 添加fileData中的column1、column2、column3、column4
+            dataRow.add(fileData.getColumn1() != null ? fileData.getColumn1() : "");
+            dataRow.add(fileData.getColumn2() != null ? fileData.getColumn2() : "");
+            dataRow.add(fileData.getColumn3() != null ? fileData.getColumn3() : "");
+            dataRow.add(fileData.getColumn4() != null ? fileData.getColumn4() : "");
+            
+            // 添加analysisResult中的logInfo、code、resultContent
+            dataRow.add(result.getLogInfo() != null ? result.getLogInfo() : "");
+            dataRow.add(formatCodeForExcel(result.getCode()));
+            dataRow.add(result.getResultContent() != null ? result.getResultContent() : "");
+            
+            sheetData.add(dataRow);
         }
 
-        // 移除末尾的下划线
-        if (sheetName.length() > 0 && sheetName.charAt(sheetName.length() - 1) == '_') {
-            sheetName.deleteCharAt(sheetName.length() - 1);
-        }
-
-        // 限制sheet名称长度为31个字符
-        if (sheetName.length() > 31) {
-            sheetName = new StringBuilder(sheetName.substring(0, 31));
-        }
-
-        // 如果sheet名称为空，使用默认名称
-        if (sheetName.length() == 0) {
-            sheetName.append("Sheet_");
-        }
-
-        return sheetName.toString();
+        logger.info("创建sheet数据完成，共 {} 行数据（包含表头）", sheetData.size());
+        return sheetData;
     }
 
     /**
-     * 创建sheet数据
-     * @param result 分析结果
-     * @param fileData 文件数据
-     * @return sheet数据
+     * 格式化code字段用于Excel导出，处理JSON数组的换行显示
+     * @param code JSON字符串格式的源码列表
+     * @return 格式化后的字符串，适合Excel显示
      */
-    private List<List<String>> createSheetData(AnalysisResult result, FileData fileData) {
-        List<List<String>> sheetData = new ArrayList<>();
+    private String formatCodeForExcel(String code) {
+        if (code == null || code.isEmpty()) {
+            return "";
+        }
 
-        // 添加标题行
-        List<String> titleRow = new ArrayList<>();
-        titleRow.add("Field");
-        titleRow.add("Value");
-        sheetData.add(titleRow);
+        try {
+            // 解析JSON数组
+            JSONArray codeArray = JSON.parseArray(code);
+            if (codeArray == null || codeArray.isEmpty()) {
+                return "";
+            }
 
-        // 添加数据行
-        List<String> row1 = new ArrayList<>();
-        row1.add("Row Index");
-        row1.add(String.valueOf(fileData.getRowIndex()));
-        sheetData.add(row1);
+            // 将每个源码元素用换行符连接
+            StringBuilder formattedCode = new StringBuilder();
+            for (int i = 0; i < codeArray.size(); i++) {
+                String codeLine = codeArray.getString(i);
+                if (codeLine != null) {
+                    if (i > 0) {
+                        formattedCode.append("\n");
+                    }
+                    formattedCode.append(codeLine);
+                }
+            }
 
-        List<String> row2 = new ArrayList<>();
-        row2.add("Column 1");
-        row2.add(fileData.getColumn1());
-        sheetData.add(row2);
-
-        List<String> row3 = new ArrayList<>();
-        row3.add("Column 2");
-        row3.add(fileData.getColumn2());
-        sheetData.add(row3);
-
-        List<String> row4 = new ArrayList<>();
-        row4.add("Column 3");
-        row4.add(fileData.getColumn3());
-        sheetData.add(row4);
-
-        List<String> row5 = new ArrayList<>();
-        row5.add("Data Content");
-        row5.add(fileData.getDataContent());
-        sheetData.add(row5);
-
-        List<String> row6 = new ArrayList<>();
-        row6.add("Analysis Status");
-        row6.add(result.getStatus());
-        sheetData.add(row6);
-
-        List<String> row7 = new ArrayList<>();
-        row7.add("Analysis Time");
-        row7.add(result.getAnalysisTime().toString());
-        sheetData.add(row7);
-
-        List<String> row8 = new ArrayList<>();
-        row8.add("Analysis Result");
-        row8.add(result.getResultContent());
-        sheetData.add(row8);
-
-        return sheetData;
+            return formattedCode.toString();
+        } catch (Exception e) {
+            logger.error("解析code字段JSON失败: {}", code, e);
+            // 如果解析失败，直接返回原始字符串
+            return code;
+        }
     }
 
     /**
