@@ -31,7 +31,16 @@ public class AnalysisResult {
     
     @Column(name = "code")
     private String code;
-
+    
+    @Column(name = "class_name", columnDefinition = "TEXT")
+    private String className;
+    
+    @Column(name = "line_number", columnDefinition = "INTEGER")
+    private Integer lineNumber;
+    
+    @Column(name = "method_name", columnDefinition = "TEXT")
+    private String methodName;
+    
     // Getters and Setters
 
     public Long getId() {
@@ -96,5 +105,29 @@ public class AnalysisResult {
     
     public void setCode(String code) {
         this.code = code;
+    }
+    
+    public String getClassName() {
+        return className;
+    }
+    
+    public void setClassName(String className) {
+        this.className = className;
+    }
+    
+    public Integer getLineNumber() {
+        return lineNumber;
+    }
+    
+    public void setLineNumber(Integer lineNumber) {
+        this.lineNumber = lineNumber;
+    }
+    
+    public String getMethodName() {
+        return methodName;
+    }
+    
+    public void setMethodName(String methodName) {
+        this.methodName = methodName;
     }
 }

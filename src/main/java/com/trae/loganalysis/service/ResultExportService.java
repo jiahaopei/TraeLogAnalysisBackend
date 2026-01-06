@@ -108,7 +108,10 @@ public class ResultExportService {
         headerRow.add("column3");
         headerRow.add("column4");
         headerRow.add("错误日志");
-        headerRow.add("相关源码");
+        headerRow.add("类名");
+        headerRow.add("行号");
+        headerRow.add("方法名");
+        headerRow.add("方法源码");
         headerRow.add("AI初步分析");
         sheetData.add(headerRow);
 
@@ -128,9 +131,12 @@ public class ResultExportService {
             dataRow.add(fileData.getColumn3() != null ? fileData.getColumn3() : "");
             dataRow.add(fileData.getColumn4() != null ? fileData.getColumn4() : "");
             
-            // 添加analysisResult中的logInfo、code、resultContent
+            // 添加analysisResult中的logInfo、className、lineNumber、methodName、code、resultContent
             dataRow.add(result.getLogInfo() != null ? result.getLogInfo() : "");
-            dataRow.add(formatCodeForExcel(result.getCode()));
+            dataRow.add(result.getClassName() != null ? result.getClassName() : "");
+            dataRow.add(result.getLineNumber() != null ? String.valueOf(result.getLineNumber()) : "");
+            dataRow.add(result.getMethodName() != null ? result.getMethodName() : "");
+            dataRow.add(formatCodeForExcel(result.getCode(), result.getClassName(), result.getLineNumber(), result.getMethodName()));
             dataRow.add(result.getResultContent() != null ? result.getResultContent() : "");
             
             sheetData.add(dataRow);
@@ -142,10 +148,14 @@ public class ResultExportService {
 
     /**
      * 格式化code字段用于Excel导出，处理JSON数组的换行显示
+     * 根据类名、行号、方法名从源码列表中提取对应的方法源码
      * @param code JSON字符串格式的源码列表
+     * @param className 类名
+     * @param lineNumber 行号
+     * @param methodName 方法名
      * @return 格式化后的字符串，适合Excel显示
      */
-    private String formatCodeForExcel(String code) {
+    private String formatCodeForExcel(String code, String className, Integer lineNumber, String methodName) {
         if (code == null || code.isEmpty()) {
             return "";
         }
@@ -157,27 +167,21 @@ public class ResultExportService {
                 return "";
             }
 
-            // 将每个源码元素用换行符连接
-            StringBuilder formattedCode = new StringBuilder();
-            for (int i = 0; i < codeArray.size(); i++) {
-                String codeLine = codeArray.getString(i);
-                if (codeLine != null) {
-                    if (i > 0) {
-                        formattedCode.append("\n");
-                    }
-                    formattedCode.append(codeLine);
-                }
+            // 如果没有提供类名、行号、方法名，直接返回所有源码
+            if (className == null || className.isEmpty() || lineNumber == null || methodName == null || methodName.isEmpty()) {
+                return formatAllCodeLines(codeArray);
             }
 
+            // 根据类名、行号、方法名提取对应的源码
+            String extractedCode = extractMethodCode(codeArray, className, lineNumber, methodName);
+            
             // Excel单元格有大小限制（32,767字符），需要截断过长的内容
-            String result = formattedCode.toString();
-            int maxLength = 32767; // Excel单元格最大字符数
-            if (result.length() > maxLength) {
-                result = result.substring(0, maxLength - 20) + "...(已截断，内容过长)";
-                logger.warn("code字段内容过长，已截断。原始长度: {}, 截断后长度: {}", formattedCode.length(), result.length());
+            if (extractedCode.length() > 32767) {
+                extractedCode = extractedCode.substring(0, 32747) + "...(已截断，内容过长)";
+                logger.warn("code字段内容过长，已截断。原始长度: {}, 截断后长度: {}", extractedCode.length(), extractedCode.length());
             }
 
-            return result;
+            return extractedCode;
         } catch (Exception e) {
             logger.error("解析code字段JSON失败: {}", code, e);
             // 如果解析失败，直接返回原始字符串，但也需要检查长度
@@ -187,6 +191,66 @@ public class ResultExportService {
             }
             return code;
         }
+    }
+
+    /**
+     * 格式化所有源码行
+     * @param codeArray 源码数组
+     * @return 格式化后的字符串
+     */
+    private String formatAllCodeLines(JSONArray codeArray) {
+        StringBuilder formattedCode = new StringBuilder();
+        for (int i = 0; i < codeArray.size(); i++) {
+            String codeLine = codeArray.getString(i);
+            if (codeLine != null) {
+                if (i > 0) {
+                    formattedCode.append("\n");
+                }
+                formattedCode.append(codeLine);
+            }
+        }
+        return formattedCode.toString();
+    }
+
+    /**
+     * 从源码数组中提取指定方法对应的源码
+     * @param codeArray 源码数组
+     * @param className 类名
+     * @param lineNumber 行号
+     * @param methodName 方法名
+     * @return 提取的方法源码
+     */
+    private String extractMethodCode(JSONArray codeArray, String className, Integer lineNumber, String methodName) {
+        logger.debug("开始提取方法源码，类名: {}, 行号: {}, 方法名: {}", className, lineNumber, methodName);
+        
+        // 构建方法签名
+        String methodSignature = className + "." + methodName;
+        
+        // 查找包含方法签名的源码行
+        StringBuilder extractedCode = new StringBuilder();
+        boolean foundMethod = false;
+        
+        for (int i = 0; i < codeArray.size(); i++) {
+            String codeLine = codeArray.getString(i);
+            if (codeLine != null) {
+                // 检查是否包含方法签名
+                if (codeLine.contains(methodSignature)) {
+                    foundMethod = true;
+                    if (extractedCode.length() > 0) {
+                        extractedCode.append("\n");
+                    }
+                    extractedCode.append(codeLine);
+                }
+            }
+        }
+        
+        if (!foundMethod) {
+            logger.warn("未找到方法签名: {}，返回所有源码", methodSignature);
+            return formatAllCodeLines(codeArray);
+        }
+        
+        logger.debug("成功提取方法源码，共 {} 行", extractedCode.toString().split("\n").length);
+        return extractedCode.toString();
     }
 
     /**
