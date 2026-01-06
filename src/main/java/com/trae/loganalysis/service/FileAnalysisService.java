@@ -4,9 +4,12 @@ import com.alibaba.fastjson.JSONObject;
 import com.trae.loganalysis.entity.AnalysisResult;
 import com.trae.loganalysis.entity.FileData;
 import com.trae.loganalysis.entity.UploadFile;
+import com.trae.loganalysis.model.SourceCodeInfo;
 import com.trae.loganalysis.repository.AnalysisResultRepository;
 import com.trae.loganalysis.repository.FileDataRepository;
 import com.trae.loganalysis.repository.UploadFileRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
@@ -30,6 +33,7 @@ import java.util.stream.Collectors;
 @Service
 public class FileAnalysisService {
 
+    private static final Logger logger = LoggerFactory.getLogger(FileAnalysisService.class);
     private final UploadFileRepository uploadFileRepository;
     private final FileDataRepository fileDataRepository;
     private final AnalysisResultRepository analysisResultRepository;
@@ -168,7 +172,7 @@ public class FileAnalysisService {
             JSONObject rootObj = JSONObject.parseObject(logInfoResponse);
             String retCode = rootObj.getString("retCode");
             
-            // Check if the API call was successful
+            // Check if API call was successful
             String logMessage = "";
             if (!"0000".equals(retCode)) {
                 // API call failed, set result status to FAILED
@@ -196,16 +200,21 @@ public class FileAnalysisService {
             String methodName = extractMethodNameFromLog(logMessage);
             
             // Step 3: Call source code API to get full source code
-            String fullSourceCode = callSourceCodeApi(fileData.getColumn4());
+            SourceCodeInfo sourceCodeInfo = callSourceCodeApi(fileData.getColumn4());
             
-            // Step 4: Extract only the method code from full source code
-            String methodCode = extractMethodCode(fullSourceCode, methodName);
+            // Step 4: Extract only method code from full source code
+            String methodCode = extractMethodCode(sourceCodeInfo.getSourceCode(), sourceCodeInfo.getClassName(), 
+                                            sourceCodeInfo.getLineNum(), sourceCodeInfo.getMethodName());
+            
+            // Set source code information to result
+            result.setClassName(sourceCodeInfo.getClassName());
+            result.setLineNumber(sourceCodeInfo.getLineNum());
+            result.setMethodName(sourceCodeInfo.getMethodName());
+            result.setCode(methodCode);
             
             // Step 5: Call AI suggestion API with method code
             String aiSuggestionResponse = callAiSuggestionApi(methodCode);
             result.setResultContent(aiSuggestionResponse);
-            // Set the method name as code in the result
-            result.setCode(methodName);
 
         } catch (Exception e) {
             result.setStatus("FAILED");
@@ -219,7 +228,7 @@ public class FileAnalysisService {
     /**
      * Extract method name from log message
      * Log format: [YYYY-MM-DD HH:mm:ss][ERROR][xxx-xxx][][][org.spring.conftig.updataCommon:98][Thread][td][sd]...
-     * Uses regex to find the method name regardless of bracket count before or after
+     * Uses regex to find method name regardless of bracket count before or after
      */
     private String extractMethodNameFromLog(String logMessage) {
         if (logMessage == null || logMessage.isEmpty()) {
@@ -227,21 +236,21 @@ public class FileAnalysisService {
         }
         
         // Regex pattern to match [fully.qualified.Class.method:lineNumber]
-        // Looks for content like [org.spring.conftig.updataCommon:98] and extracts the method name
+        // Looks for content like [org.spring.conftig.updataCommon:98] and extracts method name
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\[([\\w.]+:[\\d]+)\\]");
         java.util.regex.Matcher matcher = pattern.matcher(logMessage);
         
         if (matcher.find()) {
-            // Extract the content inside the brackets, e.g., "org.spring.conftig.updataCommon:98"
+            // Extract content inside brackets, e.g., "org.spring.conftig.updataCommon:98"
             String bracketedContent = matcher.group(1);
-            // Split on colon to get the class.method part and line number
+            // Split on colon to get class.method part and line number
             String[] parts = bracketedContent.split(":");
             if (parts.length > 0) {
                 String classMethodPart = parts[0];
                 // Split on dots to get all parts
                 String[] classMethodParts = classMethodPart.split("\\.");
                 if (classMethodParts.length > 0) {
-                    // The method name is the last part
+                    // The method name is last part
                     return classMethodParts[classMethodParts.length - 1];
                 }
             }
@@ -252,42 +261,72 @@ public class FileAnalysisService {
     
     /**
      * Call source code API to get full Java source code
+     * 调用外部接口返回对象格式为{"data":[{"className":"cn.com.handler","lineNum":150,"methodName":"socketHandler","sourceCode":"..."}]}
      */
-    private String callSourceCodeApi(String column4) {
-        // This is a placeholder implementation
-        // In a real scenario, this would call an actual API to get the source code
-        // For now, return a sample source code
-        return "public class SampleClass {\n" +
-               "    public void sampleMethod() {\n" +
-               "        System.out.println(\"Sample method\");\n" +
-               "    }\n" +
-               "    \n" +
-               "    public void updataCommon() {\n" +
-               "        try {\n" +
-               "            // Some code that might cause an error\n" +
-               "            int result = 10 / 0;\n" +
-               "        } catch (Exception e) {\n" +
-               "            e.printStackTrace();\n" +
-               "        }\n" +
-               "    }\n" +
-               "    \n" +
-               "    public void anotherMethod() {\n" +
-               "        System.out.println(\"Another method\");\n" +
-               "    }\n" +
-               "}";
+    private SourceCodeInfo callSourceCodeApi(String column4) {
+        SourceCodeInfo sourceCodeInfo = new SourceCodeInfo();
+        
+        try {
+            // Create request headers
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            // Create request body
+            String requestBody = String.format(
+                "{\"column4\":\"%s\"}",
+                column4
+            );
+            
+            // Create HttpEntity with headers and body
+            HttpEntity<String> requestEntity = new HttpEntity<>(requestBody, headers);
+            
+            // Send POST request to source code API
+            ResponseEntity<String> response = restTemplate.exchange(
+                    "${api.source-code.url}", 
+                    HttpMethod.POST, 
+                    requestEntity, 
+                    String.class);
+            
+            // Parse JSON response
+            String responseBody = response.getBody();
+            JSONObject rootObj = JSONObject.parseObject(responseBody);
+            String retCode = rootObj.getString("retCode");
+            
+            if ("0000".equals(retCode)) {
+                JSONObject entityObj = rootObj.getJSONObject("entity");
+                if (entityObj != null) {
+                    // Extract data array
+                    com.alibaba.fastjson.JSONArray dataArray = entityObj.getJSONArray("data");
+                    if (dataArray != null && !dataArray.isEmpty()) {
+                        // Get first data object
+                        JSONObject firstDataObj = dataArray.getJSONObject(0);
+                        sourceCodeInfo.setSourceCode(firstDataObj.getString("sourceCode"));
+                        sourceCodeInfo.setClassName(firstDataObj.getString("className"));
+                        sourceCodeInfo.setMethodName(firstDataObj.getString("methodName"));
+                        sourceCodeInfo.setLineNum(firstDataObj.getInteger("lineNum"));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("调用源码API失败", e);
+        }
+        
+        return sourceCodeInfo;
     }
     
     /**
-     * Extract only the specific method code from full source code
+     * Extract only specific method code from full source code
+     * 根据methodName和lineNum将sourceCode中methodName对应的源码抽取出来
+     * 并按照指定格式输出到日志
      */
-    private String extractMethodCode(String fullSourceCode, String methodName) {
+    private String extractMethodCode(String fullSourceCode, String className, Integer lineNum, String methodName) {
         if (fullSourceCode == null || fullSourceCode.isEmpty() || methodName == null || methodName.isEmpty()) {
             return fullSourceCode;
         }
         
-        // Find the method signature
-        String methodSignaturePattern = "(public|private|protected|static|final|abstract|synchronized|native|strictfp)\s+" +
-                                       "([\\w<>\\[\\]]+)\s+" +
+        // Find method signature
+        String methodSignaturePattern = "(public|private|protected|static|final|abstract|synchronized|native|strictfp)\\s+" +
+                                       "([\\w<>\\[\\]]+)\\s+" +
                                        methodName +
                                        "\\s*\\([^)]*\\)\\s*" +
                                        "(throws\\s+[\\w.,\\s]+)?\\s*" +
@@ -297,6 +336,7 @@ public class FileAnalysisService {
         java.util.regex.Matcher matcher = pattern.matcher(fullSourceCode);
         
         if (!matcher.find()) {
+            logger.warn("未找到方法签名: {}", methodName);
             return fullSourceCode;
         }
         
@@ -305,12 +345,12 @@ public class FileAnalysisService {
         int endIndex = startIndex;
         boolean insideString = false;
         
-        // Find the matching closing brace
+        // Find matching closing brace
         for (int i = startIndex; i < fullSourceCode.length(); i++) {
             char c = fullSourceCode.charAt(i);
             
             // Check for string literals to avoid counting braces inside strings
-            if (c == '\"' && (i == 0 || fullSourceCode.charAt(i - 1) != '\\')) {
+            if (c == '"' && (i == 0 || fullSourceCode.charAt(i - 1) != '\\')) {
                 insideString = !insideString;
             }
             
@@ -327,7 +367,13 @@ public class FileAnalysisService {
             }
         }
         
-        return fullSourceCode.substring(startIndex, endIndex);
+        String extractedCode = fullSourceCode.substring(startIndex, endIndex);
+        
+        // 按照指定格式输出到日志
+        logger.info("抽取的方法源码：\n/**\n * 类名：{}\n * 方法名：{}\n * 行号：{}\n */\n{}", 
+                   className, methodName, lineNum, extractedCode);
+        
+        return extractedCode;
     }
     
     /**
@@ -360,13 +406,12 @@ public class FileAnalysisService {
         return response.getBody();
     }
     
-
     
     /**
      * Call AI suggestion API with log information
      */
     private String callAiSuggestionApi(String logMessage) throws IOException {
-        // Construct the API URL with query parameter using configuration
+        // Construct API URL with query parameter using configuration
         String apiUrl = aiSuggestionUrl + "?systemCode=" + aiSuggestionSystemCode;
         
         // Create request body using configuration parameters
