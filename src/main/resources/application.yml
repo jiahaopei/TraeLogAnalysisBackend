@@ -6,6 +6,7 @@ spring:
     hibernate:
       ddl-auto: none
     database-platform: com.trae.loganalysis.config.SQLiteDialect
+    open-in-view: false
     properties:
       hibernate:
         dialect: com.trae.loganalysis.config.SQLiteDialect

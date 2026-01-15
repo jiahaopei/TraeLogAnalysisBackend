@@ -79,7 +79,11 @@ public class ResultExportService {
 
         // 创建导出目录
         String exportPath = uploadPath + "exports/";
-        fileUtil.createDirectory(exportPath);
+        boolean dirCreated = fileUtil.createDirectory(exportPath);
+        if (!dirCreated) {
+            logger.error("创建导出目录失败: {}", exportPath);
+            throw new IOException("Failed to create export directory: " + exportPath);
+        }
 
         // 生成导出文件名
         String exportFilename = "analysis_result_" + fileId + "_" + UUID.randomUUID() + ".xlsx";
@@ -87,7 +91,15 @@ public class ResultExportService {
 
         // 创建Excel文件
         excelUtil.createExcel(exportFilePath, sheetDataList);
-        logger.info("分析结果导出成功，文件路径: {}", exportFilePath);
+        
+        // 验证文件是否创建成功
+        File exportFile = new File(exportFilePath);
+        if (!exportFile.exists() || !exportFile.isFile()) {
+            logger.error("Excel文件创建失败，文件不存在: {}", exportFilePath);
+            throw new IOException("Failed to create Excel file: " + exportFilePath);
+        }
+        
+        logger.info("分析结果导出成功，文件路径: {}, 文件大小: {} bytes", exportFilePath, exportFile.length());
 
         return exportFilePath;
     }
