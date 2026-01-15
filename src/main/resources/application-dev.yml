@@ -2,8 +2,6 @@
 spring:
   datasource:
     url: jdbc:sqlite:./log_analysis.db?journal_mode=WAL
-    username: sa
-    password: sa
   jpa:
     show-sql: false
     properties:
