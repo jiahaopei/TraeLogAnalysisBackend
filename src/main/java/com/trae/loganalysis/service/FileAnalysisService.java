@@ -137,16 +137,26 @@ public class FileAnalysisService {
                     analysisResultRepository.saveAll(results);
                 }
 
+                // 重新从数据库获取最新的 uploadFile 对象，避免并发脏写
+                UploadFile latestUploadFile = uploadFileRepository.findById(fileId)
+                        .orElseThrow(() -> new IllegalArgumentException("File not found: " + fileId));
+
                 // 更新状态为分析完成
-                uploadFile.setStatus("COMPLETED");
+                latestUploadFile.setStatus("COMPLETED");
+                uploadFileRepository.save(latestUploadFile);
+                
+                logger.info("文件分析完成，文件ID: {}, 状态已更新为: COMPLETED", fileId);
             } catch (Exception e) {
+                // 重新从数据库获取最新的 uploadFile 对象，避免并发脏写
+                UploadFile latestUploadFile = uploadFileRepository.findById(fileId)
+                        .orElseThrow(() -> new IllegalArgumentException("File not found: " + fileId));
+
                 // 更新状态为失败
-                uploadFile.setStatus("FAILED");
-                uploadFile.setErrorMessage("Analysis failed: " + e.getMessage());
-                e.printStackTrace();
-            } finally {
-                // 保存状态更新
-                uploadFileRepository.save(uploadFile);
+                latestUploadFile.setStatus("FAILED");
+                latestUploadFile.setErrorMessage("Analysis failed: " + e.getMessage());
+                uploadFileRepository.save(latestUploadFile);
+                
+                logger.error("文件分析失败，文件ID: {}, 错误信息: {}", fileId, e.getMessage(), e);
             }
         }, executorService);
     }
@@ -317,13 +327,44 @@ public class FileAnalysisService {
     /**
      * Extract only specific method code from full source code
      * 根据methodName和lineNum将sourceCode中methodName对应的源码抽取出来
+     * 优先通过pattern识别方法名提取，若识别不到则通过行号提取
      * 并按照指定格式输出到日志
      */
     private String extractMethodCode(String fullSourceCode, String className, Integer lineNum, String methodName) {
-        if (fullSourceCode == null || fullSourceCode.isEmpty() || methodName == null || methodName.isEmpty()) {
+        if (fullSourceCode == null || fullSourceCode.isEmpty()) {
             return fullSourceCode;
         }
         
+        // 如果提供了方法名，优先通过方法名pattern提取
+        if (methodName != null && !methodName.isEmpty()) {
+            String methodCode = extractMethodByName(fullSourceCode, methodName);
+            if (methodCode != null && !methodCode.isEmpty()) {
+                logger.info("抽取的方法源码：\n/**\n * 类名：{}\n * 方法名：{}\n * 行号：{}\n */\n{}", 
+                           className, methodName, lineNum, methodCode);
+                return methodCode;
+            }
+            logger.warn("未通过方法名找到方法: {}, 尝试通过行号查找", methodName);
+        }
+        
+        // 如果没有提供方法名或通过方法名未找到，则通过行号提取
+        if (lineNum != null && lineNum > 0) {
+            String methodCode = extractMethodByLineNumber(fullSourceCode, lineNum);
+            if (methodCode != null && !methodCode.isEmpty()) {
+                logger.info("抽取的方法源码：\n/**\n * 类名：{}\n * 方法名：{}\n * 行号：{}\n */\n{}", 
+                           className, methodName != null ? methodName : "未知", lineNum, methodCode);
+                return methodCode;
+            }
+            logger.warn("未通过行号找到方法: {}", lineNum);
+        }
+        
+        // 都找不到则返回完整源码
+        return fullSourceCode;
+    }
+    
+    /**
+     * 通过方法名提取方法源码
+     */
+    private String extractMethodByName(String fullSourceCode, String methodName) {
         // Find method signature - simplified pattern to match method with any return type
         String methodSignaturePattern = "\\b" + methodName + "\\s*\\([^)]*\\)\\s*\\{";
         
@@ -331,11 +372,92 @@ public class FileAnalysisService {
         java.util.regex.Matcher matcher = pattern.matcher(fullSourceCode);
         
         if (!matcher.find()) {
-            logger.warn("未找到方法签名: {}", methodName);
-            return fullSourceCode;
+            return null;
         }
         
         int startIndex = matcher.start();
+        return extractMethodBody(fullSourceCode, startIndex);
+    }
+    
+    /**
+     * 通过行号提取包含该行的方法源码
+     */
+    private String extractMethodByLineNumber(String fullSourceCode, Integer lineNum) {
+        String[] lines = fullSourceCode.split("\n");
+        
+        if (lineNum > lines.length) {
+            return null;
+        }
+        
+        // 从指定行向上查找方法签名
+        int methodStartLine = -1;
+        
+        // 从目标行向上扫描，找到方法签名
+        for (int i = lineNum - 1; i >= 0; i--) {
+            String line = lines[i].trim();
+            
+            // 跳过空行和注释
+            if (line.isEmpty() || line.startsWith("//") || line.startsWith("/*") || line.startsWith("*")) {
+                continue;
+            }
+            
+            // 检查是否是方法签名行
+            // 方法签名应该包含：修饰符(可选) + 返回类型 + 方法名 + 参数列表
+            // 例如：public Pair<Boolean, JSONObject> customerAccountAndLimitQuery(String customerNum, String certType, String certNum)
+            if (line.contains("(") && line.contains(")") && 
+                !line.contains("=") && !line.startsWith("return") && !line.startsWith("throw") && 
+                !line.startsWith("if") && !line.startsWith("for") && !line.startsWith("while") && 
+                !line.startsWith("try") && !line.startsWith("catch") && !line.startsWith("finally") &&
+                !line.startsWith("switch") && !line.startsWith("case") && !line.startsWith("default")) {
+                
+                // 检查是否包含方法修饰符
+                boolean hasModifier = line.contains("public") || line.contains("private") || 
+                                   line.contains("protected") || line.contains("static") || 
+                                   line.contains("final") || line.contains("synchronized") ||
+                                   line.contains("native") || line.contains("abstract");
+                
+                // 检查是否包含方法定义模式（方法名后面跟着括号）
+                // 方法名应该以字母或下划线开头，后面跟着括号
+                boolean hasMethodPattern = line.matches(".*\\s+[a-zA-Z_$][a-zA-Z0-9_$]*\\s*\\([^)]*\\).*");
+                
+                // 如果有修饰符或者有方法定义模式，则认为是方法签名
+                if (hasModifier || hasMethodPattern) {
+                    methodStartLine = i;
+                    break;
+                }
+            }
+        }
+        
+        if (methodStartLine == -1) {
+            return null;
+        }
+        
+        // 计算方法开始的字符位置（从方法签名行开始）
+        int startIndex = 0;
+        for (int i = 0; i < methodStartLine; i++) {
+            startIndex += lines[i].length() + 1; // +1 for newline
+        }
+        
+        // 找到方法签名行中第一个 '{' 的位置
+        int braceStartIndex = fullSourceCode.indexOf('{', startIndex);
+        if (braceStartIndex == -1) {
+            return null;
+        }
+        
+        // 从方法签名行开始到第一个 '{' 之间是方法签名
+        String methodSignature = fullSourceCode.substring(startIndex, braceStartIndex + 1);
+        
+        // 从第一个 '{' 开始提取方法体
+        String methodBody = extractMethodBody(fullSourceCode, braceStartIndex);
+        
+        // 合并方法签名和方法体
+        return methodSignature + methodBody.substring(1); // 去掉方法体开头的 '{'，因为已经在方法签名中
+    }
+    
+    /**
+     * 从指定位置提取完整的方法体
+     */
+    private String extractMethodBody(String fullSourceCode, int startIndex) {
         int braceCount = 0;
         int endIndex = startIndex;
         boolean insideString = false;
@@ -362,13 +484,7 @@ public class FileAnalysisService {
             }
         }
         
-        String extractedCode = fullSourceCode.substring(startIndex, endIndex);
-        
-        // 按照指定格式输出到日志
-        logger.info("抽取的方法源码：\n/**\n * 类名：{}\n * 方法名：{}\n * 行号：{}\n */\n{}", 
-                   className, methodName, lineNum, extractedCode);
-        
-        return extractedCode;
+        return fullSourceCode.substring(startIndex, endIndex);
     }
     
     /**

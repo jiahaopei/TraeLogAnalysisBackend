@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS upload_file (
     upload_time TIMESTAMP NOT NULL,
     status TEXT NOT NULL,
     error_message TEXT,
-    created_by TEXT
+    created_by TEXT,
+    version INTEGER DEFAULT 0
 );
 
 -- 创建文件数据表

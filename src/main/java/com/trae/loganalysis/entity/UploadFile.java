@@ -32,6 +32,10 @@ public class UploadFile {
     @Column(name = "created_by")
     private String createdBy;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     // Getters and Setters
 
     public Long getId() {
@@ -96,5 +100,13 @@ public class UploadFile {
 
     public void setCreatedBy(String createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }
