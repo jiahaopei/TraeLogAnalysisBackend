@@ -1,7 +1,11 @@
 spring:
   datasource:
     driver-class-name: org.sqlite.JDBC
-    schema: classpath:schema.sql
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      continue-on-error: true
   jpa:
     hibernate:
       ddl-auto: none

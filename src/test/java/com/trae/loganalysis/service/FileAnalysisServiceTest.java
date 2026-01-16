@@ -214,4 +214,167 @@ public class FileAnalysisServiceTest {
         System.out.println(extractedCode);
         System.out.println("=== 抽取结束 ===");
     }
+
+    /**
+     * 测试通过行号提取方法源码
+     */
+    @Test
+    public void testExtractMethodCodeByLineNumber() throws Exception {
+        // 准备测试源码
+        String fullSourceCode = "package cn.com.zybank.mcs.unsecured.loan.unsecured.loan.prcd.service.uslmang.service;\n\n" +
+                "import cn.com.zybank.mcs.ncm.system.base.core.constant.SystemBaseConstant;\n\n" +
+                "/**\n" +
+                " * 与核心通信service\n" +
+                " *\n" +
+                " * @author yibo.su\n" +
+                " * @date 2024/3/14 10:09\n" +
+                " */\n\n" +
+                "@Service\n" +
+                "public class CoreConnectionService {\n\n" +
+                "\tprivate static final Logger log = LoggerFactory.getLogger(ZyxjFileJobService.class);\n\n" +
+                "\t/**\n" +
+                "\t * 059149\n" +
+                "\t * 客户下账户和客户级限制查询\n" +
+                "\t * 客户号与证件信息二传一，优先推荐客户号\n" +
+                "\t *\n" +
+                "\t * @param customerNum 客户号\n" +
+                "\t * @param certType    证件类型\n" +
+                "\t * @param certNum     证件号\n" +
+                "\t * @return left-请求是否成功，right-报文对象\n" +
+                "\t */\n" +
+                "\tpublic Pair<Boolean, JSONObject> customerAccountAndLimitQuery(String customerNum, String certType, String certNum) {\n" +
+                "\t\t\tif (StringUtils.isBlank(customerNum) && paramFlag) {\n" +
+                "\t\t\tlog.error(\"客户下账户和客户级限制查询-请求参数为空,customerNum:{},certType:{},certNum:{}\", customerNum, certType, certNum);\n" +
+                "\t\t\treturn generateFailPair(\"必传参数为空\");\n" +
+                "\t\t}\n\n" +
+                "\t\t//组装报文头\n" +
+                "\t\tMap<String, Object> reqMap = Maps.newHashMap();\n" +
+                "\t\treqMap.putAll(ComXmlHeadUtil.sysCoreHeadMsg(tranCode, ConstantUtil.SYSTEM_CODE_CBS));\n" +
+                "\t\t\n" +
+                "\t\treqMap.put(\"SEQ_NO\", CurrentHeaderHolder.buildSeqNo());\n\n" +
+                "\t\treturn sendCore(\"客户下账户和客户级限制查询\", tranCode, reqMap);\n" +
+                "\t}\n\n" +
+                "\t/**\n" +
+                "\t * 发送请求至核心\n" +
+                "\t *\n" +
+                "\t * @param interfaceName 接口标识\n" +
+                "\t * @param tranCode      请求参数\n" +
+                "\t * @param reqMap        返回参数\n" +
+                "\t * @return left-请求是否成功，right-报文对象\n" +
+                "\t */\n" +
+                "\tprivate Pair<Boolean, JSONObject> sendCore(String interfaceName, String tranCode, Map<String, Object> reqMap) {\n\n" +
+                "\t\ttry {\n" +
+                "\t\t\tlog.info(\"调用核心{}-{}，向核心发送报文:{}\", tranCode, interfaceName, JSONObject.toJSONString(reqMap));\n" +
+                "\t\t} catch (Exception e) {\n" +
+                "\t\t\treturn generateFailPair(e.getMessage());\n" +
+                "\t\t}\n\n" +
+                "\t\ttry {\n" +
+                "\t\t\tJSONObject json = new JSONObject(respMap);\n" +
+                "\t\t\tJSONObject result = json.getJSONObject(\"result\");\n" +
+                "\t\t\tJSONObject replyMsgJson = result.getJSONObject(\"Reply_Msg\");\n" +
+                "\t\t\tif (\"000000\".equals(retCode)) {\n" +
+                "\t\t\t\treturn Pair.of(true, json);\n" +
+                "\t\t\t} else {\n" +
+                "\t\t\t\treturn Pair.of(false, json);\n" +
+                "\t\t\t}\n" +
+                "\t\t} catch (Exception e) {\n" +
+                "\t\t\treturn generateFailPair(\"核心报文异常\");\n" +
+                "\t\t}\n" +
+                "\t}";
+
+        // 创建FileAnalysisService实例
+        FileAnalysisService service = new FileAnalysisService(null, null, null, null, 1);
+
+        // 使用反射调用私有方法
+        Method extractMethodCodeMethod = FileAnalysisService.class.getDeclaredMethod("extractMethodCode", 
+                String.class, String.class, Integer.class, String.class);
+        extractMethodCodeMethod.setAccessible(true);
+
+        // 测试1: 通过行号50提取sendCore方法（行号50是sendCore方法签名行）
+        String extractedCode1 = (String) extractMethodCodeMethod.invoke(service, 
+                fullSourceCode, "CoreConnectionService", 50, null);
+
+        // 验证结果
+        assertNotNull(extractedCode1, "通过行号抽取的方法源码不应为空");
+        assertTrue(extractedCode1.contains("sendCore"), 
+                "抽取的源码应包含方法名sendCore");
+        assertTrue(extractedCode1.contains("interfaceName"), 
+                "抽取的源码应包含interfaceName参数");
+        assertTrue(extractedCode1.contains("调用核心"), 
+                "抽取的源码应包含日志内容");
+
+        // 打印抽取的源码
+        System.out.println("=== 通过行号50抽取的方法源码 ===");
+        System.out.println(extractedCode1);
+        System.out.println("=== 抽取结束 ===");
+
+        // 测试2: 通过行号27提取customerAccountAndLimitQuery方法
+        String extractedCode2 = (String) extractMethodCodeMethod.invoke(service, 
+                fullSourceCode, "CoreConnectionService", 27, null);
+
+        // 验证结果
+        assertNotNull(extractedCode2, "通过行号抽取的方法源码不应为空");
+        assertTrue(extractedCode2.contains("customerAccountAndLimitQuery"), 
+                "抽取的源码应包含方法名customerAccountAndLimitQuery");
+        assertTrue(extractedCode2.contains("组装报文头"), 
+                "抽取的源码应包含注释内容");
+
+        // 打印抽取的源码
+        System.out.println("=== 通过行号40抽取的方法源码 ===");
+        System.out.println(extractedCode2);
+        System.out.println("=== 抽取结束 ===");
+
+        // 测试3: 通过行号30提取customerAccountAndLimitQuery方法
+        String extractedCode3 = (String) extractMethodCodeMethod.invoke(service, 
+                fullSourceCode, "CoreConnectionService", 30, null);
+
+        // 验证结果
+        assertNotNull(extractedCode3, "通过行号30抽取的方法源码不应为空");
+        assertTrue(extractedCode3.contains("customerAccountAndLimitQuery"), 
+                "抽取的源码应包含方法名customerAccountAndLimitQuery");
+        assertTrue(extractedCode3.contains("组装报文头"), 
+                "抽取的源码应包含注释内容");
+
+        // 打印抽取的源码
+        System.out.println("=== 通过行号30抽取的方法源码 ===");
+        System.out.println(extractedCode3);
+        System.out.println("=== 抽取结束 ===");
+    }
+
+    /**
+     * 测试当方法名找不到时，通过行号提取方法
+     */
+    @Test
+    public void testExtractMethodCodeFallbackToLineNumber() throws Exception {
+        // 准备测试源码
+        String fullSourceCode = "public class TestClass {\n" +
+                "    public void existingMethod() {\n" +
+                "        System.out.println(\"test\");\n" +
+                "    }\n" +
+                "}";
+
+        // 创建FileAnalysisService实例
+        FileAnalysisService service = new FileAnalysisService(null, null, null, null, 1);
+
+        // 使用反射调用私有方法
+        Method extractMethodCodeMethod = FileAnalysisService.class.getDeclaredMethod("extractMethodCode", 
+                String.class, String.class, Integer.class, String.class);
+        extractMethodCodeMethod.setAccessible(true);
+
+        // 调用方法，传入不存在的方法名，但传入有效的行号
+        String extractedCode = (String) extractMethodCodeMethod.invoke(service, 
+                fullSourceCode, "TestClass", 3, "nonExistentMethod");
+
+        // 验证结果：应该通过行号找到方法
+        assertNotNull(extractedCode, "通过行号抽取的方法源码不应为空");
+        assertTrue(extractedCode.contains("existingMethod"), 
+                "抽取的源码应包含existingMethod方法名");
+        assertTrue(extractedCode.contains("test"), 
+                "抽取的源码应包含test字符串");
+
+        // 打印抽取的源码
+        System.out.println("=== 方法名不存在时通过行号抽取的方法源码 ===");
+        System.out.println(extractedCode);
+        System.out.println("=== 抽取结束 ===");
+    }
 }

@@ -12,7 +12,6 @@ spring:
       max-file-size: 100MB
       max-request-size: 100MB
       file-size-threshold: 2KB
-      location: ./tmp
 
 # 服务器配置
 server:
@@ -53,3 +52,4 @@ logging:
     org.hibernate.SQL: DEBUG
     org.hibernate.orm.jdbc.bind: TRACE
     org.hibernate.engine.jdbc.env.internal.LobCreatorBuilderImpl: ERROR
+    org.springframework.boot.sql.init: DEBUG
