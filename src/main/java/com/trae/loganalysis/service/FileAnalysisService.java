@@ -176,7 +176,7 @@ public class FileAnalysisService {
 
         try {
             // Step 1: Call logAnalysis API to get log info
-            String logInfoResponse = callLogAnalysisApi(fileData.getColumn4());
+            String logInfoResponse = callLogAnalysisApi(fileData.getColumn4(), fileData.getImportTime());
             
             // Parse JSON response using Fastjson
             JSONObject rootObj = JSONObject.parseObject(logInfoResponse);
@@ -490,13 +490,22 @@ public class FileAnalysisService {
     /**
      * Call log analysis API to get log information
      */
-    private String callLogAnalysisApi(String column4) {
+    private String callLogAnalysisApi(String column4, Date importTime) {
         // Create request headers
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        String logAnalysisEndTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
-        Date startDate = new Date(new Date().getTime() - 24 * 60 * 60 * 1000);
-        String logAnalysisStartTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(startDate);
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        
+        // 处理importTime为null的情况，使用当前时间作为默认值
+        Date actualTime = importTime != null ? importTime : new Date();
+        
+        // 计算时间范围：存放时间的前一小时与后一小时
+        Date endDate = new Date(actualTime.getTime() + 60 * 60 * 1000);
+        Date startDate = new Date(actualTime.getTime() - 60 * 60 * 1000);
+        
+        String logAnalysisEndTime = sdf.format(endDate);
+        String logAnalysisStartTime = sdf.format(startDate);
+        
         // Create request body using configuration parameters
         String requestBody = String.format(
             "{\"systemCode\":\"%s\",\"message\":\"%s\",\"startTime\":\"%s\",\"endTime\":\"%s\",\"conditionValueMap\":{\"condition\":\"%s\",\"value\":\"%s\"},\"size\":%d}",

@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS file_data (
     column3 TEXT,
     column4 TEXT,
     data_content TEXT,
-    row_index INTEGER
+    row_index INTEGER,
+    import_time TIMESTAMP
 );
 
 -- 创建分析结果表

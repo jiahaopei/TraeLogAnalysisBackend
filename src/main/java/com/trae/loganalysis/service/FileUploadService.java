@@ -15,6 +15,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -56,24 +58,30 @@ public class FileUploadService {
             throw new IllegalArgumentException("Only Excel files are supported");
         }
 
+        // 确保上传路径是绝对路径
+        File uploadDir = new File(uploadPath);
+        String absoluteUploadPath = uploadDir.getAbsolutePath();
+        File absoluteUploadDir = new File(absoluteUploadPath);
+        
         // 创建上传目录
-        fileUtil.createDirectory(uploadPath);
-        logger.debug("上传目录创建成功: {}", uploadPath);
+        if (!absoluteUploadDir.exists()) {
+            absoluteUploadDir.mkdirs();
+            logger.debug("上传目录创建成功: {}", absoluteUploadDir.getAbsolutePath());
+        }
 
         // 生成唯一文件名
         String uniqueFilename = fileUtil.generateUniqueFilename(file.getOriginalFilename());
-        String filePath = uploadPath + uniqueFilename;
-        logger.debug("生成唯一文件名: {}, 保存路径: {}", uniqueFilename, filePath);
+        File dest = new File(absoluteUploadDir, uniqueFilename);
+        logger.debug("生成唯一文件名: {}, 保存路径: {}", uniqueFilename, dest.getAbsolutePath());
 
         // 保存文件到本地
-        File dest = new File(filePath);
         file.transferTo(dest);
-        logger.debug("文件保存到本地成功: {}", filePath);
+        logger.debug("文件保存到本地成功: {}", dest.getAbsolutePath());
 
         // 创建上传文件记录
         UploadFile uploadFile = new UploadFile();
         uploadFile.setFileName(file.getOriginalFilename());
-        uploadFile.setFilePath(filePath);
+        uploadFile.setFilePath(dest.getAbsolutePath());
         uploadFile.setFileSize(file.getSize());
         uploadFile.setUploadTime(new Date());
         uploadFile.setStatus("UPLOADED"); // 初始状态为已上传
@@ -87,7 +95,7 @@ public class FileUploadService {
         CompletableFuture.runAsync(() -> {
             logger.info("开始异步读取Excel文件内容，文件ID: {}", savedFile.getId());
             try {
-                readAndSaveExcelData(savedFile.getId(), filePath);
+                readAndSaveExcelData(savedFile.getId(), dest.getAbsolutePath());
                 logger.info("Excel文件内容读取并保存成功，文件ID: {}", savedFile.getId());
             } catch (IOException e) {
                 // 更新状态为失败
@@ -131,12 +139,23 @@ public class FileUploadService {
             if (rowData.size() >= 4) {
                 fileData.setColumn4(rowData.get(3));
             }
+            // 处理时间列（第五列），格式为YYYY-MM-DD HH:mm:ss
+            if (rowData.size() >= 5) {
+                String timeStr = rowData.get(4);
+                try {
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                    Date importTime = sdf.parse(timeStr);
+                    fileData.setImportTime(importTime);
+                } catch (ParseException e) {
+                    logger.error("解析时间格式失败，行号: {}, 时间字符串: {}", i, timeStr, e);
+                }
+            }
 
             // 保存其他列数据（JSON格式）
-            if (rowData.size() > 4) {
+            if (rowData.size() > 5) {
                 StringBuilder jsonBuilder = new StringBuilder();
                 jsonBuilder.append("[");
-                for (int j = 4; j < rowData.size(); j++) {
+                for (int j = 5; j < rowData.size(); j++) {
                     jsonBuilder.append('"').append(rowData.get(j)).append('"');
                     if (j < rowData.size() - 1) {
                         jsonBuilder.append(",");

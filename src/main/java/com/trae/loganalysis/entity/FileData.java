@@ -1,6 +1,7 @@
 package com.trae.loganalysis.entity;
 
 import jakarta.persistence.*;
+import java.util.Date;
 
 @Entity
 @Table(name = "file_data")
@@ -30,6 +31,9 @@ public class FileData {
 
     @Column(name = "row_index")
     private Integer rowIndex;
+
+    @Column(name = "import_time")
+    private Date importTime;
 
     // Getters and Setters
 
@@ -95,5 +99,13 @@ public class FileData {
 
     public void setRowIndex(Integer rowIndex) {
         this.rowIndex = rowIndex;
+    }
+
+    public Date getImportTime() {
+        return importTime;
+    }
+
+    public void setImportTime(Date importTime) {
+        this.importTime = importTime;
     }
 }

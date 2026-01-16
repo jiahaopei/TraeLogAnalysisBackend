@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -119,6 +120,7 @@ public class ResultExportService {
         headerRow.add("column2");
         headerRow.add("column3");
         headerRow.add("column4");
+        headerRow.add("导入时间");
         headerRow.add("错误日志");
         headerRow.add("类名");
         headerRow.add("行号");
@@ -142,6 +144,14 @@ public class ResultExportService {
             dataRow.add(fileData.getColumn2() != null ? fileData.getColumn2() : "");
             dataRow.add(fileData.getColumn3() != null ? fileData.getColumn3() : "");
             dataRow.add(fileData.getColumn4() != null ? fileData.getColumn4() : "");
+            
+            // 添加导入时间
+            String importTimeStr = "";
+            if (fileData.getImportTime() != null) {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                importTimeStr = sdf.format(fileData.getImportTime());
+            }
+            dataRow.add(importTimeStr);
             
             // 添加analysisResult中的logInfo、className、lineNumber、methodName、code、resultContent
             dataRow.add(result.getLogInfo() != null ? result.getLogInfo() : "");
