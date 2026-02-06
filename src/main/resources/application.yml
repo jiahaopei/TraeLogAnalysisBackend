@@ -25,3 +25,7 @@ spring:
 
 # 激活的配置文件
 spring.profiles.active: dev
+
+# 上传文件存储目录
+upload:
+  directory: ./uploads
