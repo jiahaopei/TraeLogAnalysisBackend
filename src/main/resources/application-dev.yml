@@ -24,6 +24,11 @@ file:
   analysis:
     thread-pool-size: 5
 
+# 源代码配置
+source-code:
+  # 要解析的Java源代码目录，支持多个目录，用逗号分隔
+  directories: ./src/main/java
+
 # API配置
 api:
   log-analysis:

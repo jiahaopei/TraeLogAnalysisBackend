@@ -1,6 +1,10 @@
 package com.trae.loganalysis.service;
 
 import com.alibaba.fastjson.JSONObject;
+import com.github.javaparser.JavaParser;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.body.TypeDeclaration;
 import com.trae.loganalysis.entity.AnalysisResult;
 import com.trae.loganalysis.entity.FileData;
 import com.trae.loganalysis.entity.UploadFile;
@@ -38,6 +42,7 @@ public class FileAnalysisService {
     private final FileDataRepository fileDataRepository;
     private final AnalysisResultRepository analysisResultRepository;
     private final RestTemplate restTemplate;
+    private final SourceCodeCache sourceCodeCache;
 
     private final ExecutorService executorService;
     
@@ -83,11 +88,13 @@ public class FileAnalysisService {
                               FileDataRepository fileDataRepository,
                               AnalysisResultRepository analysisResultRepository,
                               RestTemplate restTemplate,
+                              SourceCodeCache sourceCodeCache,
                               @Value("${file.analysis.thread-pool-size}") int threadPoolSize) {
         this.uploadFileRepository = uploadFileRepository;
         this.fileDataRepository = fileDataRepository;
         this.analysisResultRepository = analysisResultRepository;
         this.restTemplate = restTemplate;
+        this.sourceCodeCache = sourceCodeCache;
         this.executorService = Executors.newFixedThreadPool(threadPoolSize);
     }
 
@@ -270,76 +277,204 @@ public class FileAnalysisService {
     }
     
     /**
-     * Call source code API to get full Java source code
-     * 调用外部接口返回对象格式为{"data":[{"className":"cn.com.handler","lineNum":150,"methodName":"socketHandler","sourceCode":"..."}]}
+     * Get source code from memory cache
+     * 从内存缓存中获取源代码
      */
     private SourceCodeInfo callSourceCodeApi(String column4) {
         SourceCodeInfo sourceCodeInfo = new SourceCodeInfo();
         
         try {
-            // Create request headers
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+            // 从column4中提取类名
+            // 假设column4格式为: className:methodName:lineNum 或其他格式
+            // 这里尝试解析column4获取类名
+            String className = extractClassNameFromColumn4(column4);
             
-            // Create request body
-            String requestBody = String.format(
-                "{\"column4\":\"%s\"}",
-                column4
-            );
-            
-            // Create HttpEntity with headers and body
-            HttpEntity<String> requestEntity = new HttpEntity<>(requestBody, headers);
-            
-            // Send POST request to source code API
-            ResponseEntity<String> response = restTemplate.exchange(
-                    "${api.source-code.url}", 
-                    HttpMethod.POST, 
-                    requestEntity, 
-                    String.class);
-            
-            // Parse JSON response
-            String responseBody = response.getBody();
-            JSONObject rootObj = JSONObject.parseObject(responseBody);
-            String retCode = rootObj.getString("retCode");
-            
-            if ("0000".equals(retCode)) {
-                JSONObject entityObj = rootObj.getJSONObject("entity");
-                if (entityObj != null) {
-                    // Extract data array
-                    com.alibaba.fastjson.JSONArray dataArray = entityObj.getJSONArray("data");
-                    if (dataArray != null && !dataArray.isEmpty()) {
-                        // Get first data object
-                        JSONObject firstDataObj = dataArray.getJSONObject(0);
-                        sourceCodeInfo.setSourceCode(firstDataObj.getString("sourceCode"));
-                        sourceCodeInfo.setClassName(firstDataObj.getString("className"));
-                        sourceCodeInfo.setMethodName(firstDataObj.getString("methodName"));
-                        sourceCodeInfo.setLineNum(firstDataObj.getInteger("lineNum"));
-                    }
+            if (className != null && !className.isEmpty()) {
+                String sourceCode = sourceCodeCache.getSourceCode(className);
+                
+                if (sourceCode != null) {
+                    sourceCodeInfo.setSourceCode(sourceCode);
+                    sourceCodeInfo.setClassName(className);
+                    
+                    // 尝试从column4中提取方法名和行号
+                    String methodName = extractMethodNameFromColumn4(column4);
+                    Integer lineNum = extractLineNumFromColumn4(column4);
+                    
+                    sourceCodeInfo.setMethodName(methodName);
+                    sourceCodeInfo.setLineNum(lineNum);
+                    
+                    logger.debug("从缓存中获取源码成功: {}", className);
+                } else {
+                    logger.warn("缓存中未找到类: {}", className);
                 }
             }
         } catch (Exception e) {
-            logger.error("调用源码API失败", e);
+            logger.error("从缓存获取源码失败", e);
         }
         
         return sourceCodeInfo;
     }
     
     /**
+     * 从column4中提取类名
+     */
+    private String extractClassNameFromColumn4(String column4) {
+        if (column4 == null || column4.isEmpty()) {
+            return null;
+        }
+        
+        // 尝试解析不同的格式
+        // 格式1: className:methodName:lineNum
+        if (column4.contains(":")) {
+            String[] parts = column4.split(":");
+            if (parts.length > 0) {
+                return parts[0];
+            }
+        }
+        
+        // 格式2: 完整的类名
+        if (column4.contains(".")) {
+            return column4;
+        }
+        
+        return column4;
+    }
+    
+    /**
+     * 从column4中提取方法名
+     */
+    private String extractMethodNameFromColumn4(String column4) {
+        if (column4 == null || column4.isEmpty()) {
+            return null;
+        }
+        
+        // 格式: className:methodName:lineNum
+        if (column4.contains(":")) {
+            String[] parts = column4.split(":");
+            if (parts.length > 1) {
+                return parts[1];
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 从column4中提取行号
+     */
+    private Integer extractLineNumFromColumn4(String column4) {
+        if (column4 == null || column4.isEmpty()) {
+            return null;
+        }
+        
+        // 格式: className:methodName:lineNum
+        if (column4.contains(":")) {
+            String[] parts = column4.split(":");
+            if (parts.length > 2) {
+                try {
+                    return Integer.parseInt(parts[2]);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
      * Extract only specific method code from full source code
      * 根据methodName和lineNum将sourceCode中methodName对应的源码抽取出来
-     * 优先通过pattern识别方法名提取，若识别不到则通过行号提取
-     * 并按照指定格式输出到日志
+     * 使用JavaParser进行精确解析
      */
     private String extractMethodCode(String fullSourceCode, String className, Integer lineNum, String methodName) {
         if (fullSourceCode == null || fullSourceCode.isEmpty()) {
             return fullSourceCode;
         }
         
+        try {
+            JavaParser parser = new JavaParser();
+            CompilationUnit cu = parser.parse(fullSourceCode).getResult().orElse(null);
+            
+            if (cu == null) {
+                logger.warn("无法解析源代码: {}", className);
+                return fullSourceCode;
+            }
+            
+            // 如果提供了方法名，优先通过方法名查找
+            if (methodName != null && !methodName.isEmpty()) {
+                String methodCode = extractMethodByNameWithParser(cu, methodName);
+                if (methodCode != null && !methodCode.isEmpty()) {
+                    logger.info("使用JavaParser抽取的方法源码：\n/**\n * 类名：{}\n * 方法名：{}\n * 行号：{}\n */\n{}", 
+                               className, methodName, lineNum, methodCode);
+                    return methodCode;
+                }
+                logger.warn("未通过方法名找到方法: {}, 尝试通过行号查找", methodName);
+            }
+            
+            // 如果没有提供方法名或通过方法名未找到，则通过行号提取
+            if (lineNum != null && lineNum > 0) {
+                String methodCode = extractMethodByLineNumberWithParser(cu, lineNum);
+                if (methodCode != null && !methodCode.isEmpty()) {
+                    logger.info("使用JavaParser抽取的方法源码：\n/**\n * 类名：{}\n * 方法名：{}\n * 行号：{}\n */\n{}", 
+                               className, methodName != null ? methodName : "未知", lineNum, methodCode);
+                    return methodCode;
+                }
+                logger.warn("未通过行号找到方法: {}", lineNum);
+            }
+            
+        } catch (Exception e) {
+            logger.error("使用JavaParser提取方法代码失败，回退到正则表达式方法", e);
+            // 如果JavaParser失败，回退到原来的正则表达式方法
+            return extractMethodCodeByRegex(fullSourceCode, className, lineNum, methodName);
+        }
+        
+        // 都找不到则返回完整源码
+        return fullSourceCode;
+    }
+    
+    /**
+     * 使用JavaParser通过方法名提取方法源码
+     */
+    private String extractMethodByNameWithParser(CompilationUnit cu, String methodName) {
+        for (TypeDeclaration<?> type : cu.findAll(TypeDeclaration.class)) {
+            for (MethodDeclaration method : type.getMethods()) {
+                if (methodName.equals(method.getNameAsString())) {
+                    return method.toString();
+                }
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * 使用JavaParser通过行号提取方法源码
+     */
+    private String extractMethodByLineNumberWithParser(CompilationUnit cu, Integer lineNum) {
+        for (TypeDeclaration<?> type : cu.findAll(TypeDeclaration.class)) {
+            for (MethodDeclaration method : type.getMethods()) {
+                if (method.getRange().isPresent()) {
+                    int startLine = method.getRange().get().begin.line;
+                    int endLine = method.getRange().get().end.line;
+                    
+                    if (lineNum >= startLine && lineNum <= endLine) {
+                        return method.toString();
+                    }
+                }
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * 使用正则表达式提取方法代码（备用方法）
+     */
+    private String extractMethodCodeByRegex(String fullSourceCode, String className, Integer lineNum, String methodName) {
         // 如果提供了方法名，优先通过方法名pattern提取
         if (methodName != null && !methodName.isEmpty()) {
             String methodCode = extractMethodByName(fullSourceCode, methodName);
             if (methodCode != null && !methodCode.isEmpty()) {
-                logger.info("抽取的方法源码：\n/**\n * 类名：{}\n * 方法名：{}\n * 行号：{}\n */\n{}", 
+                logger.info("使用正则表达式抽取的方法源码：\n/**\n * 类名：{}\n * 方法名：{}\n * 行号：{}\n */\n{}", 
                            className, methodName, lineNum, methodCode);
                 return methodCode;
             }
@@ -350,7 +485,7 @@ public class FileAnalysisService {
         if (lineNum != null && lineNum > 0) {
             String methodCode = extractMethodByLineNumber(fullSourceCode, lineNum);
             if (methodCode != null && !methodCode.isEmpty()) {
-                logger.info("抽取的方法源码：\n/**\n * 类名：{}\n * 方法名：{}\n * 行号：{}\n */\n{}", 
+                logger.info("使用正则表达式抽取的方法源码：\n/**\n * 类名：{}\n * 方法名：{}\n * 行号：{}\n */\n{}", 
                            className, methodName != null ? methodName : "未知", lineNum, methodCode);
                 return methodCode;
             }

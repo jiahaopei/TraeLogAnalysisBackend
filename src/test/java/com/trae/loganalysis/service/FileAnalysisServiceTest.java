@@ -81,7 +81,7 @@ public class FileAnalysisServiceTest {
         String methodName = "sendCore";
 
         // 创建FileAnalysisService实例
-        FileAnalysisService service = new FileAnalysisService(null, null, null, null, 1);
+        FileAnalysisService service = new FileAnalysisService(null, null, null, null, null, 1);
 
         // 使用反射调用私有方法
         Method extractMethodCodeMethod = FileAnalysisService.class.getDeclaredMethod("extractMethodCode", 
@@ -123,7 +123,7 @@ public class FileAnalysisServiceTest {
     @Test
     public void testExtractMethodCodeWithEmptyInput() throws Exception {
         // 创建FileAnalysisService实例
-        FileAnalysisService service = new FileAnalysisService(null, null, null, null, 1);
+        FileAnalysisService service = new FileAnalysisService(null, null, null, null, null, 1);
 
         // 使用反射调用私有方法
         Method extractMethodCodeMethod = FileAnalysisService.class.getDeclaredMethod("extractMethodCode", 
@@ -156,7 +156,7 @@ public class FileAnalysisServiceTest {
                 "}";
 
         // 创建FileAnalysisService实例
-        FileAnalysisService service = new FileAnalysisService(null, null, null, null, 1);
+        FileAnalysisService service = new FileAnalysisService(null, null, null, null, null, 1);
 
         // 使用反射调用私有方法
         Method extractMethodCodeMethod = FileAnalysisService.class.getDeclaredMethod("extractMethodCode", 
@@ -188,7 +188,7 @@ public class FileAnalysisServiceTest {
                 "}";
 
         // 创建FileAnalysisService实例
-        FileAnalysisService service = new FileAnalysisService(null, null, null, null, 1);
+        FileAnalysisService service = new FileAnalysisService(null, null, null, null, null, 1);
 
         // 使用反射调用私有方法
         Method extractMethodCodeMethod = FileAnalysisService.class.getDeclaredMethod("extractMethodCode", 
@@ -283,7 +283,7 @@ public class FileAnalysisServiceTest {
                 "\t}";
 
         // 创建FileAnalysisService实例
-        FileAnalysisService service = new FileAnalysisService(null, null, null, null, 1);
+        FileAnalysisService service = new FileAnalysisService(null, null, null, null, null, 1);
 
         // 使用反射调用私有方法
         Method extractMethodCodeMethod = FileAnalysisService.class.getDeclaredMethod("extractMethodCode", 
@@ -354,7 +354,7 @@ public class FileAnalysisServiceTest {
                 "}";
 
         // 创建FileAnalysisService实例
-        FileAnalysisService service = new FileAnalysisService(null, null, null, null, 1);
+        FileAnalysisService service = new FileAnalysisService(null, null, null, null, null, 1);
 
         // 使用反射调用私有方法
         Method extractMethodCodeMethod = FileAnalysisService.class.getDeclaredMethod("extractMethodCode", 
